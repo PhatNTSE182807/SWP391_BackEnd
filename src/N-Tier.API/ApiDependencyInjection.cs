@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -36,6 +36,8 @@ public static class ApiDependencyInjection
     {
         services.AddSwaggerGen(s =>
         {
+            s.SwaggerDoc("v1", new OpenApiInfo { Title = "Scientific Journal Publication Trend Tracking System", Version = "v1" });
+
             s.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
             {
                 Description = "JWT Authorization header using the Bearer scheme (Example: 'Bearer YOUR_TOKEN')",

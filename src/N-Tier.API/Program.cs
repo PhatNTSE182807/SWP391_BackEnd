@@ -1,4 +1,4 @@
-using FluentValidation;
+﻿using FluentValidation;
 using FluentValidation.AspNetCore;
 using N_Tier.API;
 using N_Tier.API.Filters;
@@ -10,6 +10,7 @@ using N_Tier.DataAccess.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
 
+
 builder.Services.AddControllers(
     config => config.Filters.Add(typeof(ValidateModelAttribute))
 );
@@ -18,7 +19,27 @@ builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddValidatorsFromAssemblyContaining(typeof(IValidationsMarker));
 
 builder.Services.AddSwagger();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.CustomSchemaIds(type =>
+    {
+        string name = type.Name;
+        if (name.EndsWith("LoginRequestModel"))
+        {
+            return name.Replace("LoginRequestModel", "UserLogin"); 
+        }
+        if (name.EndsWith("RegisterRequestModel"))
+        {
+            return name.Replace("RegisterRequestModel", "UserRegistration"); 
+        }
+        if (name.EndsWith("Enum"))
+        {
+            return name.Replace("Enum", ""); 
+        }
 
+        return name; 
+    });
+});
 builder.Services.AddHttpContextAccessor();
 
 builder.Services.AddDataAccess(builder.Configuration)
@@ -35,7 +56,11 @@ using var scope = app.Services.CreateScope();
 await AutomatedMigration.MigrateAsync(scope.ServiceProvider);
 
 app.UseSwagger();
-app.UseSwaggerUI(c => { c.SwaggerEndpoint("/swagger/v1/swagger.json", "N-Tier V1"); });
+app.UseSwaggerUI(c => 
+{ 
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "Scientific Journal Publication Trend Tracking System"); 
+    c.DocumentTitle = "Scientific Journal Publication Trend Tracking System";
+});
 
 app.UseHttpsRedirection();
 
