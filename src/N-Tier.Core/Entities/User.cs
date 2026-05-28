@@ -1,0 +1,21 @@
+﻿using System;
+using System.Collections.Generic;
+
+namespace N_Tier.Core.Entities;
+
+public partial class User
+{
+    public Guid UserId { get; set; }
+
+    public string Username { get; set; }
+
+    public string Email { get; set; }
+
+    public string Password { get; set; }
+
+    public Guid RoleId { get; set; }
+
+    public string Phonenumber { get; set; }
+
+    public virtual Role Role { get; set; }
+}
