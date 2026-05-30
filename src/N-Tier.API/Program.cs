@@ -1,4 +1,4 @@
-﻿using FluentValidation;
+using FluentValidation;
 using FluentValidation.AspNetCore;
 using N_Tier.API;
 using N_Tier.API.Filters;
@@ -10,6 +10,7 @@ using N_Tier.DataAccess.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.AddHttpClient();
 
 builder.Services.AddControllers(
     config => config.Filters.Add(typeof(ValidateModelAttribute))
