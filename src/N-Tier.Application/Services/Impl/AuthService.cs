@@ -33,6 +33,9 @@ public class AuthService : IAuthService
         if (!isPasswordValid)
             throw new BadRequestException("Identifier or password is incorrect");
 
+        if (!user.IsActive)
+            throw new BadRequestException("Account is currently deactivated!");
+
         var token = JwtHelper.GenerateToken(user, user.Role.RoleName, _configuration);
 
         return new LoginResponseModel
