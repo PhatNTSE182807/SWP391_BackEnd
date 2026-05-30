@@ -1,4 +1,4 @@
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 using FluentValidation;
 using N_Tier.Application.Models.Auth;
 
@@ -6,15 +6,12 @@ namespace N_Tier.Application.Models.Validators.Auth;
 
 public class RegisterRequestModelValidator : AbstractValidator<RegisterRequestModel>
 {
-    // Regex số điện thoại Việt Nam:
-    // - Có thể có hoặc không có số 0 ở đầu
-    // - Đầu số hợp lệ: 3[2-9], 5[6|8|9], 7[0|6-9], 8[0-6|8|9], 9[0-4|6-9]
-    // - Tổng: 10 số (nếu có 0) hoặc 9 số (nếu không có 0)
+
     private const string VietnamPhoneRegex = @"^(0?)(3[2-9]|5[6|8|9]|7[0|6-9]|8[0-6|8|9]|9[0-4|6-9])[0-9]{7}$";
 
     public RegisterRequestModelValidator()
     {
-        // ── Username ──────────────────────────────────────────────────────
+
         RuleFor(r => r.Username)
             .NotEmpty()
             .WithMessage("Username is required")
@@ -23,7 +20,6 @@ public class RegisterRequestModelValidator : AbstractValidator<RegisterRequestMo
             .MaximumLength(100)
             .WithMessage("Username must not exceed 100 characters");
 
-        // ── Email ─────────────────────────────────────────────────────────
         RuleFor(r => r.Email)
             .NotEmpty()
             .WithMessage("Email is required")
@@ -32,14 +28,12 @@ public class RegisterRequestModelValidator : AbstractValidator<RegisterRequestMo
             .MaximumLength(256)
             .WithMessage("Email must not exceed 256 characters");
 
-        // ── Phone number ──────────────────────────────────────────────────
         RuleFor(r => r.PhoneNumber)
             .NotEmpty()
             .WithMessage("Phone number is required")
             .Matches(VietnamPhoneRegex)
-            .WithMessage("Phone number must be a valid Vietnamese phone number (e.g. 0912345678 or 912345678)");
+            .WithMessage("Phone number must be a valid Vietnamese phone number");
 
-        // ── Password ──────────────────────────────────────────────────────
         RuleFor(r => r.Password)
             .NotEmpty()
             .WithMessage("Password is required")
@@ -50,7 +44,6 @@ public class RegisterRequestModelValidator : AbstractValidator<RegisterRequestMo
             .Must(password => !string.IsNullOrEmpty(password) && Regex.IsMatch(password, "[A-Z]"))
             .WithMessage("Password must contain at least one uppercase letter");
 
-        // ── Role ──────────────────────────────────────────────────────────
         RuleFor(r => r.RoleName)
             .IsInEnum()
             .WithMessage("Role is required and must be a valid role (Student, Lecturer, Researcher, System Administrator)");
