@@ -3,15 +3,13 @@ using System.Collections.Generic;
 
 namespace N_Tier.Core.Entities;
 
-public partial class PaperSourceMapping
+public partial class SubfieldSourceMapping
 {
     public Guid MappingId { get; set; }
 
-    public Guid PaperId { get; set; }
+    public Guid SubfieldId { get; set; }
 
     public Guid SourceId { get; set; }
-
-    public Guid? RawWorkId { get; set; }
 
     public string SourceRecordId { get; set; }
 
@@ -21,6 +19,6 @@ public partial class PaperSourceMapping
 
     public DateTime CreatedAt { get; set; }
 
-    public virtual Paper Paper { get; set; }
+    public virtual ResearchSubfield Subfield { get; set; }
 }
 

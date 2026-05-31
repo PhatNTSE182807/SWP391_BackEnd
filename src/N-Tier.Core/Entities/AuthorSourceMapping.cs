@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace N_Tier.Core.Entities;
@@ -11,6 +11,8 @@ public partial class AuthorSourceMapping
 
     public Guid SourceId { get; set; }
 
+    public Guid? RawAuthorId { get; set; }
+
     public string SourceRecordId { get; set; }
 
     public string SourceRecordUrl { get; set; }
@@ -20,6 +22,5 @@ public partial class AuthorSourceMapping
     public DateTime CreatedAt { get; set; }
 
     public virtual Author Author { get; set; }
-
-    public virtual ApiSource Source { get; set; }
 }
+

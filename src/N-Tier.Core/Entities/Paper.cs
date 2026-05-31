@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace N_Tier.Core.Entities;
@@ -56,4 +56,7 @@ public partial class Paper
     public virtual ICollection<PaperKeyword> PaperKeywords { get; set; } = new List<PaperKeyword>();
 
     public virtual ICollection<PaperSourceMapping> PaperSourceMappings { get; set; } = new List<PaperSourceMapping>();
+
+    public virtual ICollection<PaperTopic> PaperTopics { get; set; } = new List<PaperTopic>();
 }
+
