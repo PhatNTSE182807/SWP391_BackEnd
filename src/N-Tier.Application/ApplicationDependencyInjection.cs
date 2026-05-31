@@ -1,4 +1,4 @@
-using Mapster;
+﻿using Mapster;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -30,6 +30,7 @@ public static class ApplicationDependencyInjection
         services.AddScoped<ITemplateService, TemplateService>();
         services.AddScoped<IApiSourceService, ApiSourceService>();
         services.AddScoped<IJournalService, JournalService>();
+        services.AddScoped<IPaperService, PaperService>();
         services.AddScoped<IAuthService, AuthService>();
 
         if (env.IsDevelopment())

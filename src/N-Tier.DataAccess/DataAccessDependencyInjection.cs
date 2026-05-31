@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
@@ -44,7 +44,11 @@ public static class DataAccessDependencyInjection
         else
             services.AddDbContext<DatabaseContext>(options =>
                 options.UseSqlServer(databaseConfig.ConnectionString,
-                    opt => opt.MigrationsAssembly(typeof(DatabaseContext).Assembly.FullName)));
+                    opt =>
+                    {
+                        opt.MigrationsAssembly(typeof(DatabaseContext).Assembly.FullName);
+                        opt.MigrationsHistoryTable("__EFMigrationsHistory", "core");
+                    }));
     }
 }
 

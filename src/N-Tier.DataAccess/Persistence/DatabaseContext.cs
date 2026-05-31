@@ -1,64 +1,81 @@
-using System.Reflection;
+﻿using System;
+using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
-using N_Tier.Core.Common;
-using N_Tier.Shared.Services;
-
 using N_Tier.Core.Entities;
 
 namespace N_Tier.DataAccess.Persistence;
 
-public class DatabaseContext(DbContextOptions options, IClaimService claimService) : DbContext(options)
+public partial class DatabaseContext : DbContext
 {
-    public virtual DbSet<ApiSource> ApiSources { get; set; }
+    public DatabaseContext()
+    {
+    }
+
+    public DatabaseContext(DbContextOptions<DatabaseContext> options)
+        : base(options)
+    {
+    }
+
     public virtual DbSet<Author> Authors { get; set; }
+
     public virtual DbSet<AuthorSourceMapping> AuthorSourceMappings { get; set; }
+
+    public virtual DbSet<DomainSourceMapping> DomainSourceMappings { get; set; }
+
+    public virtual DbSet<FieldSourceMapping> FieldSourceMappings { get; set; }
+
     public virtual DbSet<Journal> Journals { get; set; }
+
     public virtual DbSet<JournalSourceMapping> JournalSourceMappings { get; set; }
+
+    public virtual DbSet<JournalTopic> JournalTopics { get; set; }
+
+    public virtual DbSet<JournalType> JournalTypes { get; set; }
+
     public virtual DbSet<Keyword> Keywords { get; set; }
+
     public virtual DbSet<KeywordSourceMapping> KeywordSourceMappings { get; set; }
+
     public virtual DbSet<Paper> Papers { get; set; }
+
     public virtual DbSet<PaperAuthor> PaperAuthors { get; set; }
+
     public virtual DbSet<PaperKeyword> PaperKeywords { get; set; }
+
     public virtual DbSet<PaperSourceMapping> PaperSourceMappings { get; set; }
-    public virtual DbSet<PipelineRun> PipelineRuns { get; set; }
-    public virtual DbSet<Work> Works { get; set; }
+
+    public virtual DbSet<PaperTopic> PaperTopics { get; set; }
+
+    public virtual DbSet<ResearchDomain> ResearchDomains { get; set; }
+
+    public virtual DbSet<ResearchField> ResearchFields { get; set; }
+
+    public virtual DbSet<ResearchSubfield> ResearchSubfields { get; set; }
+
+    public virtual DbSet<ResearchTopic> ResearchTopics { get; set; }
+
     public virtual DbSet<Role> CoreRoles { get; set; }
+
     public virtual DbSet<User> CoreUsers { get; set; }
 
-    protected override void OnModelCreating(ModelBuilder builder)
-    {
-        builder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
+    public virtual DbSet<SubfieldSourceMapping> SubfieldSourceMappings { get; set; }
 
-        base.OnModelCreating(builder);
+    public virtual DbSet<TopicSourceMapping> TopicSourceMappings { get; set; }
 
-        builder.Entity<ApiSource>(entity =>
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+#warning To protect potentially sensitive information in your connection string, you should move it out of source code. You can avoid scaffolding the connection string by using the Name= syntax to read it from configuration - see https://go.microsoft.com/fwlink/?linkid=2131148. For more guidance on storing connection strings, see https://go.microsoft.com/fwlink/?LinkId=723263.
         {
-            entity.HasKey(e => e.SourceId).HasName("PK_raw_api_sources");
+            if (!optionsBuilder.IsConfigured)
+            {
+                optionsBuilder.UseSqlServer(
+                    "Server=13.213.7.89,1433;Database=scientific_journal_tracking_db;User ID=backend_user;Password=NguyeN2004@;TrustServerCertificate=True;",
+                    opt => opt.MigrationsHistoryTable("__EFMigrationsHistory", "core"));
+            }
+        }
 
-            entity.ToTable("api_sources", "raw");
-
-            entity.HasIndex(e => e.SourceName, "UQ_raw_api_sources_source_name").IsUnique();
-
-            entity.Property(e => e.SourceId)
-                .HasDefaultValueSql("(newid())")
-                .HasColumnName("source_id");
-            entity.Property(e => e.BaseUrl)
-                .IsRequired()
-                .HasMaxLength(500)
-                .HasColumnName("base_url");
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(sysutcdatetime())")
-                .HasColumnName("created_at");
-            entity.Property(e => e.IsActive)
-                .HasDefaultValue(true)
-                .HasColumnName("is_active");
-            entity.Property(e => e.SourceName)
-                .IsRequired()
-                .HasMaxLength(100)
-                .HasColumnName("source_name");
-        });
-
-        builder.Entity<Author>(entity =>
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<Author>(entity =>
         {
             entity.HasKey(e => e.AuthorId).HasName("PK_core_authors");
 
@@ -71,7 +88,7 @@ public class DatabaseContext(DbContextOptions options, IClaimService claimServic
             entity.Property(e => e.CitedByCount).HasColumnName("cited_by_count");
             entity.Property(e => e.CountsByYear).HasColumnName("counts_by_year");
             entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(sysutcdatetime())")
+                .HasDefaultValueSql("(dateadd(hour,(7),sysutcdatetime()))")
                 .HasColumnName("created_at");
             entity.Property(e => e.DisplayName)
                 .IsRequired()
@@ -96,9 +113,7 @@ public class DatabaseContext(DbContextOptions options, IClaimService claimServic
             entity.Property(e => e.SourceUpdatedDate).HasColumnName("source_updated_date");
             entity.Property(e => e.TopicShare).HasColumnName("topic_share");
             entity.Property(e => e.Topics).HasColumnName("topics");
-            entity.Property(e => e.TwoYearMeanCitedness)
-                .HasColumnType("decimal(10, 4)")
-                .HasColumnName("two_year_mean_citedness");
+            entity.Property(e => e.TwoYearMeanCitedness).HasColumnName("two_year_mean_citedness");
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
             entity.Property(e => e.WorksApiUrl)
                 .HasMaxLength(1000)
@@ -107,7 +122,7 @@ public class DatabaseContext(DbContextOptions options, IClaimService claimServic
             entity.Property(e => e.XConcepts).HasColumnName("x_concepts");
         });
 
-        builder.Entity<AuthorSourceMapping>(entity =>
+        modelBuilder.Entity<AuthorSourceMapping>(entity =>
         {
             entity.HasKey(e => e.MappingId).HasName("PK_core_author_source_mappings");
 
@@ -120,8 +135,9 @@ public class DatabaseContext(DbContextOptions options, IClaimService claimServic
                 .HasColumnName("mapping_id");
             entity.Property(e => e.AuthorId).HasColumnName("author_id");
             entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(sysutcdatetime())")
+                .HasDefaultValueSql("(dateadd(hour,(7),sysutcdatetime()))")
                 .HasColumnName("created_at");
+            entity.Property(e => e.RawAuthorId).HasColumnName("raw_author_id");
             entity.Property(e => e.SourceId).HasColumnName("source_id");
             entity.Property(e => e.SourceRecordId)
                 .IsRequired()
@@ -136,14 +152,71 @@ public class DatabaseContext(DbContextOptions options, IClaimService claimServic
                 .HasForeignKey(d => d.AuthorId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_core_author_source_mappings_authors");
-
-            entity.HasOne(d => d.Source).WithMany(p => p.AuthorSourceMappings)
-                .HasForeignKey(d => d.SourceId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_core_author_source_mappings_api_sources");
         });
 
-        builder.Entity<Journal>(entity =>
+        modelBuilder.Entity<DomainSourceMapping>(entity =>
+        {
+            entity.HasKey(e => e.MappingId).HasName("PK_core_domain_source_mappings");
+
+            entity.ToTable("domain_source_mappings", "core");
+
+            entity.HasIndex(e => new { e.SourceId, e.SourceRecordId }, "UQ_core_domain_source_mappings_source_record").IsUnique();
+
+            entity.Property(e => e.MappingId)
+                .HasDefaultValueSql("(newid())")
+                .HasColumnName("mapping_id");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(dateadd(hour,(7),sysutcdatetime()))")
+                .HasColumnName("created_at");
+            entity.Property(e => e.DomainId).HasColumnName("domain_id");
+            entity.Property(e => e.SourceId).HasColumnName("source_id");
+            entity.Property(e => e.SourceRecordId)
+                .IsRequired()
+                .HasMaxLength(500)
+                .HasColumnName("source_record_id");
+            entity.Property(e => e.SourceRecordUrl)
+                .HasMaxLength(1000)
+                .HasColumnName("source_record_url");
+            entity.Property(e => e.SourceSpecificData).HasColumnName("source_specific_data");
+
+            entity.HasOne(d => d.Domain).WithMany(p => p.DomainSourceMappings)
+                .HasForeignKey(d => d.DomainId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_core_domain_source_mappings_domains");
+        });
+
+        modelBuilder.Entity<FieldSourceMapping>(entity =>
+        {
+            entity.HasKey(e => e.MappingId).HasName("PK_core_field_source_mappings");
+
+            entity.ToTable("field_source_mappings", "core");
+
+            entity.HasIndex(e => new { e.SourceId, e.SourceRecordId }, "UQ_core_field_source_mappings_source_record").IsUnique();
+
+            entity.Property(e => e.MappingId)
+                .HasDefaultValueSql("(newid())")
+                .HasColumnName("mapping_id");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(dateadd(hour,(7),sysutcdatetime()))")
+                .HasColumnName("created_at");
+            entity.Property(e => e.FieldId).HasColumnName("field_id");
+            entity.Property(e => e.SourceId).HasColumnName("source_id");
+            entity.Property(e => e.SourceRecordId)
+                .IsRequired()
+                .HasMaxLength(500)
+                .HasColumnName("source_record_id");
+            entity.Property(e => e.SourceRecordUrl)
+                .HasMaxLength(1000)
+                .HasColumnName("source_record_url");
+            entity.Property(e => e.SourceSpecificData).HasColumnName("source_specific_data");
+
+            entity.HasOne(d => d.Field).WithMany(p => p.FieldSourceMappings)
+                .HasForeignKey(d => d.FieldId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_core_field_source_mappings_fields");
+        });
+
+        modelBuilder.Entity<Journal>(entity =>
         {
             entity.HasKey(e => e.JournalId).HasName("PK_core_journals");
 
@@ -158,7 +231,7 @@ public class DatabaseContext(DbContextOptions options, IClaimService claimServic
                 .HasColumnName("country_code");
             entity.Property(e => e.CountsByYear).HasColumnName("counts_by_year");
             entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(sysutcdatetime())")
+                .HasDefaultValueSql("(dateadd(hour,(7),sysutcdatetime()))")
                 .HasColumnName("created_at");
             entity.Property(e => e.FirstPublicationYear).HasColumnName("first_publication_year");
             entity.Property(e => e.HIndex).HasColumnName("h_index");
@@ -188,6 +261,7 @@ public class DatabaseContext(DbContextOptions options, IClaimService claimServic
             entity.Property(e => e.JournalType)
                 .HasMaxLength(100)
                 .HasColumnName("journal_type");
+            entity.Property(e => e.JournalTypeId).HasColumnName("journal_type_id");
             entity.Property(e => e.LastPublicationYear).HasColumnName("last_publication_year");
             entity.Property(e => e.NormalizedName)
                 .HasMaxLength(500)
@@ -199,16 +273,16 @@ public class DatabaseContext(DbContextOptions options, IClaimService claimServic
                 .HasColumnName("publisher");
             entity.Property(e => e.SourceCreatedDate).HasColumnName("source_created_date");
             entity.Property(e => e.SourceUpdatedDate).HasColumnName("source_updated_date");
-            entity.Property(e => e.Subjects).HasColumnName("subjects");
-            entity.Property(e => e.Topics).HasColumnName("topics");
-            entity.Property(e => e.TwoYearMeanCitedness)
-                .HasColumnType("decimal(10, 4)")
-                .HasColumnName("two_year_mean_citedness");
+            entity.Property(e => e.TwoYearMeanCitedness).HasColumnName("two_year_mean_citedness");
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
             entity.Property(e => e.WorksCount).HasColumnName("works_count");
+
+            entity.HasOne(d => d.JournalTypeNavigation).WithMany(p => p.Journals)
+                .HasForeignKey(d => d.JournalTypeId)
+                .HasConstraintName("FK_core_journals_journal_types");
         });
 
-        builder.Entity<JournalSourceMapping>(entity =>
+        modelBuilder.Entity<JournalSourceMapping>(entity =>
         {
             entity.HasKey(e => e.MappingId).HasName("PK_core_journal_source_mappings");
 
@@ -220,9 +294,10 @@ public class DatabaseContext(DbContextOptions options, IClaimService claimServic
                 .HasDefaultValueSql("(newid())")
                 .HasColumnName("mapping_id");
             entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(sysutcdatetime())")
+                .HasDefaultValueSql("(dateadd(hour,(7),sysutcdatetime()))")
                 .HasColumnName("created_at");
             entity.Property(e => e.JournalId).HasColumnName("journal_id");
+            entity.Property(e => e.RawSourceId).HasColumnName("raw_source_id");
             entity.Property(e => e.SourceId).HasColumnName("source_id");
             entity.Property(e => e.SourceRecordId)
                 .IsRequired()
@@ -237,14 +312,69 @@ public class DatabaseContext(DbContextOptions options, IClaimService claimServic
                 .HasForeignKey(d => d.JournalId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_core_journal_source_mappings_journals");
-
-            entity.HasOne(d => d.Source).WithMany(p => p.JournalSourceMappings)
-                .HasForeignKey(d => d.SourceId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_core_journal_source_mappings_api_sources");
         });
 
-        builder.Entity<Keyword>(entity =>
+        modelBuilder.Entity<JournalTopic>(entity =>
+        {
+            entity.HasKey(e => e.JournalTopicId).HasName("PK_core_journal_topics");
+
+            entity.ToTable("journal_topics", "core");
+
+            entity.HasIndex(e => new { e.JournalId, e.TopicId, e.SourceId }, "UQ_core_journal_topics_journal_topic_source").IsUnique();
+
+            entity.Property(e => e.JournalTopicId)
+                .HasDefaultValueSql("(newid())")
+                .HasColumnName("journal_topic_id");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(dateadd(hour,(7),sysutcdatetime()))")
+                .HasColumnName("created_at");
+            entity.Property(e => e.JournalId).HasColumnName("journal_id");
+            entity.Property(e => e.SourceId).HasColumnName("source_id");
+            entity.Property(e => e.TopicId).HasColumnName("topic_id");
+            entity.Property(e => e.TopicShare)
+                .HasColumnType("decimal(10, 7)")
+                .HasColumnName("topic_share");
+            entity.Property(e => e.WorksCount).HasColumnName("works_count");
+
+            entity.HasOne(d => d.Journal).WithMany(p => p.JournalTopics)
+                .HasForeignKey(d => d.JournalId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_core_journal_topics_journals");
+
+            entity.HasOne(d => d.Topic).WithMany(p => p.JournalTopics)
+                .HasForeignKey(d => d.TopicId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_core_journal_topics_topics");
+        });
+
+        modelBuilder.Entity<JournalType>(entity =>
+        {
+            entity.HasKey(e => e.JournalTypeId).HasName("PK_core_journal_types");
+
+            entity.ToTable("journal_types", "core");
+
+            entity.HasIndex(e => e.TypeCode, "UQ_core_journal_types_type_code").IsUnique();
+
+            entity.Property(e => e.JournalTypeId)
+                .HasDefaultValueSql("(newid())")
+                .HasColumnName("journal_type_id");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(dateadd(hour,(7),sysutcdatetime()))")
+                .HasColumnName("created_at");
+            entity.Property(e => e.Description)
+                .HasMaxLength(1000)
+                .HasColumnName("description");
+            entity.Property(e => e.DisplayName)
+                .HasMaxLength(255)
+                .HasColumnName("display_name");
+            entity.Property(e => e.TypeCode)
+                .IsRequired()
+                .HasMaxLength(100)
+                .HasColumnName("type_code");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+        });
+
+        modelBuilder.Entity<Keyword>(entity =>
         {
             entity.HasKey(e => e.KeywordId).HasName("PK_core_keywords");
 
@@ -257,7 +387,7 @@ public class DatabaseContext(DbContextOptions options, IClaimService claimServic
                 .HasColumnName("keyword_id");
             entity.Property(e => e.CitedByCount).HasColumnName("cited_by_count");
             entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(sysutcdatetime())")
+                .HasDefaultValueSql("(dateadd(hour,(7),sysutcdatetime()))")
                 .HasColumnName("created_at");
             entity.Property(e => e.KeywordName)
                 .IsRequired()
@@ -276,7 +406,7 @@ public class DatabaseContext(DbContextOptions options, IClaimService claimServic
             entity.Property(e => e.WorksCount).HasColumnName("works_count");
         });
 
-        builder.Entity<KeywordSourceMapping>(entity =>
+        modelBuilder.Entity<KeywordSourceMapping>(entity =>
         {
             entity.HasKey(e => e.MappingId).HasName("PK_core_keyword_source_mappings");
 
@@ -288,7 +418,7 @@ public class DatabaseContext(DbContextOptions options, IClaimService claimServic
                 .HasDefaultValueSql("(newid())")
                 .HasColumnName("mapping_id");
             entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(sysutcdatetime())")
+                .HasDefaultValueSql("(dateadd(hour,(7),sysutcdatetime()))")
                 .HasColumnName("created_at");
             entity.Property(e => e.KeywordId).HasColumnName("keyword_id");
             entity.Property(e => e.SourceId).HasColumnName("source_id");
@@ -305,14 +435,9 @@ public class DatabaseContext(DbContextOptions options, IClaimService claimServic
                 .HasForeignKey(d => d.KeywordId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_core_keyword_source_mappings_keywords");
-
-            entity.HasOne(d => d.Source).WithMany(p => p.KeywordSourceMappings)
-                .HasForeignKey(d => d.SourceId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_core_keyword_source_mappings_api_sources");
         });
 
-        builder.Entity<Paper>(entity =>
+        modelBuilder.Entity<Paper>(entity =>
         {
             entity.HasKey(e => e.PaperId).HasName("PK_core_papers");
 
@@ -326,7 +451,7 @@ public class DatabaseContext(DbContextOptions options, IClaimService claimServic
             entity.Property(e => e.CitedByCount).HasColumnName("cited_by_count");
             entity.Property(e => e.CountsByYear).HasColumnName("counts_by_year");
             entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(sysutcdatetime())")
+                .HasDefaultValueSql("(dateadd(hour,(7),sysutcdatetime()))")
                 .HasColumnName("created_at");
             entity.Property(e => e.Doi)
                 .HasMaxLength(500)
@@ -365,7 +490,7 @@ public class DatabaseContext(DbContextOptions options, IClaimService claimServic
                 .HasConstraintName("FK_core_papers_journals");
         });
 
-        builder.Entity<PaperAuthor>(entity =>
+        modelBuilder.Entity<PaperAuthor>(entity =>
         {
             entity.HasKey(e => e.PaperAuthorId).HasName("PK_core_paper_authors");
 
@@ -382,7 +507,7 @@ public class DatabaseContext(DbContextOptions options, IClaimService claimServic
                 .HasMaxLength(50)
                 .HasColumnName("author_position");
             entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(sysutcdatetime())")
+                .HasDefaultValueSql("(dateadd(hour,(7),sysutcdatetime()))")
                 .HasColumnName("created_at");
             entity.Property(e => e.IsCorresponding).HasColumnName("is_corresponding");
             entity.Property(e => e.PaperId).HasColumnName("paper_id");
@@ -401,7 +526,7 @@ public class DatabaseContext(DbContextOptions options, IClaimService claimServic
                 .HasConstraintName("FK_core_paper_authors_papers");
         });
 
-        builder.Entity<PaperKeyword>(entity =>
+        modelBuilder.Entity<PaperKeyword>(entity =>
         {
             entity.HasKey(e => e.PaperKeywordId).HasName("PK_core_paper_keywords");
 
@@ -413,7 +538,7 @@ public class DatabaseContext(DbContextOptions options, IClaimService claimServic
                 .HasDefaultValueSql("(newid())")
                 .HasColumnName("paper_keyword_id");
             entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(sysutcdatetime())")
+                .HasDefaultValueSql("(dateadd(hour,(7),sysutcdatetime()))")
                 .HasColumnName("created_at");
             entity.Property(e => e.KeywordId).HasColumnName("keyword_id");
             entity.Property(e => e.PaperId).HasColumnName("paper_id");
@@ -431,14 +556,9 @@ public class DatabaseContext(DbContextOptions options, IClaimService claimServic
                 .HasForeignKey(d => d.PaperId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_core_paper_keywords_papers");
-
-            entity.HasOne(d => d.Source).WithMany(p => p.PaperKeywords)
-                .HasForeignKey(d => d.SourceId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_core_paper_keywords_api_sources");
         });
 
-        builder.Entity<PaperSourceMapping>(entity =>
+        modelBuilder.Entity<PaperSourceMapping>(entity =>
         {
             entity.HasKey(e => e.MappingId).HasName("PK_core_paper_source_mappings");
 
@@ -450,7 +570,7 @@ public class DatabaseContext(DbContextOptions options, IClaimService claimServic
                 .HasDefaultValueSql("(newid())")
                 .HasColumnName("mapping_id");
             entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(sysutcdatetime())")
+                .HasDefaultValueSql("(dateadd(hour,(7),sysutcdatetime()))")
                 .HasColumnName("created_at");
             entity.Property(e => e.PaperId).HasColumnName("paper_id");
             entity.Property(e => e.RawWorkId).HasColumnName("raw_work_id");
@@ -468,130 +588,239 @@ public class DatabaseContext(DbContextOptions options, IClaimService claimServic
                 .HasForeignKey(d => d.PaperId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_core_paper_source_mappings_papers");
-
-            entity.HasOne(d => d.RawWork).WithMany(p => p.PaperSourceMappings)
-                .HasForeignKey(d => d.RawWorkId)
-                .HasConstraintName("FK_core_paper_source_mappings_raw_works");
-
-            entity.HasOne(d => d.Source).WithMany(p => p.PaperSourceMappings)
-                .HasForeignKey(d => d.SourceId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_core_paper_source_mappings_api_sources");
         });
 
-        builder.Entity<PipelineRun>(entity =>
+        modelBuilder.Entity<PaperTopic>(entity =>
         {
-            entity.HasKey(e => e.RunId).HasName("PK_raw_pipeline_runs");
+            entity.HasKey(e => e.PaperTopicId).HasName("PK_core_paper_topics");
 
-            entity.ToTable("pipeline_runs", "raw");
+            entity.ToTable("paper_topics", "core");
 
-            entity.Property(e => e.RunId)
+            entity.HasIndex(e => new { e.PaperId, e.TopicId, e.SourceId }, "UQ_core_paper_topics_paper_topic_source").IsUnique();
+
+            entity.Property(e => e.PaperTopicId)
                 .HasDefaultValueSql("(newid())")
-                .HasColumnName("run_id");
-            entity.Property(e => e.ErrorMessage).HasColumnName("error_message");
-            entity.Property(e => e.FinishedAt).HasColumnName("finished_at");
-            entity.Property(e => e.QueryKeyword)
-                .HasMaxLength(255)
-                .HasColumnName("query_keyword");
-            entity.Property(e => e.RecordsFailed).HasColumnName("records_failed");
-            entity.Property(e => e.RecordsFetched).HasColumnName("records_fetched");
-            entity.Property(e => e.RecordsInserted).HasColumnName("records_inserted");
-            entity.Property(e => e.SourceEntity)
-                .IsRequired()
-                .HasMaxLength(100)
-                .HasDefaultValue("works")
-                .HasColumnName("source_entity");
+                .HasColumnName("paper_topic_id");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(dateadd(hour,(7),sysutcdatetime()))")
+                .HasColumnName("created_at");
+            entity.Property(e => e.PaperId).HasColumnName("paper_id");
+            entity.Property(e => e.Score)
+                .HasColumnType("decimal(10, 6)")
+                .HasColumnName("score");
             entity.Property(e => e.SourceId).HasColumnName("source_id");
-            entity.Property(e => e.StartedAt)
-                .HasDefaultValueSql("(sysutcdatetime())")
-                .HasColumnName("started_at");
-            entity.Property(e => e.Status)
-                .IsRequired()
-                .HasMaxLength(50)
-                .HasDefaultValue("running")
-                .HasColumnName("status");
+            entity.Property(e => e.TopicId).HasColumnName("topic_id");
 
-            entity.HasOne(d => d.Source).WithMany(p => p.PipelineRuns)
-                .HasForeignKey(d => d.SourceId)
+            entity.HasOne(d => d.Paper).WithMany(p => p.PaperTopics)
+                .HasForeignKey(d => d.PaperId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_raw_pipeline_runs_api_sources");
+                .HasConstraintName("FK_core_paper_topics_papers");
+
+            entity.HasOne(d => d.Topic).WithMany(p => p.PaperTopics)
+                .HasForeignKey(d => d.TopicId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_core_paper_topics_topics");
         });
 
-        builder.Entity<Work>(entity =>
+        modelBuilder.Entity<ResearchDomain>(entity =>
         {
-            entity.HasKey(e => e.RawWorkId).HasName("PK_raw_works");
+            entity.HasKey(e => e.DomainId).HasName("PK_core_research_domains");
 
-            entity.ToTable("works", "raw");
+            entity.ToTable("research_domains", "core");
 
-            entity.HasIndex(e => new { e.SourceId, e.SourceRecordId }, "UQ_raw_works_source_record").IsUnique();
+            entity.HasIndex(e => e.NormalizedName, "UQ_core_research_domains_normalized_name").IsUnique();
 
-            entity.Property(e => e.RawWorkId)
+            entity.Property(e => e.DomainId)
                 .HasDefaultValueSql("(newid())")
-                .HasColumnName("raw_work_id");
-            entity.Property(e => e.FetchedAt)
-                .HasDefaultValueSql("(sysutcdatetime())")
-                .HasColumnName("fetched_at");
-            entity.Property(e => e.LastSeenAt).HasColumnName("last_seen_at");
-            entity.Property(e => e.PipelineRunId).HasColumnName("pipeline_run_id");
-            entity.Property(e => e.ProcessError).HasColumnName("process_error");
-            entity.Property(e => e.ProcessedStatus)
+                .HasColumnName("domain_id");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(dateadd(hour,(7),sysutcdatetime()))")
+                .HasColumnName("created_at");
+            entity.Property(e => e.DomainName)
                 .IsRequired()
-                .HasMaxLength(50)
-                .HasDefaultValue("pending")
-                .HasColumnName("processed_status");
-            entity.Property(e => e.QueryKeyword)
                 .HasMaxLength(255)
-                .HasColumnName("query_keyword");
-            entity.Property(e => e.RawData)
+                .HasColumnName("domain_name");
+            entity.Property(e => e.NormalizedName)
+                .HasMaxLength(255)
+                .HasComputedColumnSql("(lower(ltrim(rtrim([domain_name]))))", true)
+                .HasColumnName("normalized_name");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+        });
+
+        modelBuilder.Entity<ResearchField>(entity =>
+        {
+            entity.HasKey(e => e.FieldId).HasName("PK_core_research_fields");
+
+            entity.ToTable("research_fields", "core");
+
+            entity.HasIndex(e => new { e.DomainId, e.NormalizedName }, "UQ_core_research_fields_domain_name").IsUnique();
+
+            entity.Property(e => e.FieldId)
+                .HasDefaultValueSql("(newid())")
+                .HasColumnName("field_id");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(dateadd(hour,(7),sysutcdatetime()))")
+                .HasColumnName("created_at");
+            entity.Property(e => e.DomainId).HasColumnName("domain_id");
+            entity.Property(e => e.FieldName)
                 .IsRequired()
-                .HasColumnName("raw_data");
-            entity.Property(e => e.SourceEntity)
+                .HasMaxLength(255)
+                .HasColumnName("field_name");
+            entity.Property(e => e.NormalizedName)
+                .HasMaxLength(255)
+                .HasComputedColumnSql("(lower(ltrim(rtrim([field_name]))))", true)
+                .HasColumnName("normalized_name");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+
+            entity.HasOne(d => d.Domain).WithMany(p => p.ResearchFields)
+                .HasForeignKey(d => d.DomainId)
+                .HasConstraintName("FK_core_research_fields_domains");
+        });
+
+        modelBuilder.Entity<ResearchSubfield>(entity =>
+        {
+            entity.HasKey(e => e.SubfieldId).HasName("PK_core_research_subfields");
+
+            entity.ToTable("research_subfields", "core");
+
+            entity.HasIndex(e => new { e.FieldId, e.NormalizedName }, "UQ_core_research_subfields_field_name").IsUnique();
+
+            entity.Property(e => e.SubfieldId)
+                .HasDefaultValueSql("(newid())")
+                .HasColumnName("subfield_id");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(dateadd(hour,(7),sysutcdatetime()))")
+                .HasColumnName("created_at");
+            entity.Property(e => e.FieldId).HasColumnName("field_id");
+            entity.Property(e => e.NormalizedName)
+                .HasMaxLength(255)
+                .HasComputedColumnSql("(lower(ltrim(rtrim([subfield_name]))))", true)
+                .HasColumnName("normalized_name");
+            entity.Property(e => e.SubfieldName)
                 .IsRequired()
-                .HasMaxLength(100)
-                .HasDefaultValue("works")
-                .HasColumnName("source_entity");
+                .HasMaxLength(255)
+                .HasColumnName("subfield_name");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+
+            entity.HasOne(d => d.Field).WithMany(p => p.ResearchSubfields)
+                .HasForeignKey(d => d.FieldId)
+                .HasConstraintName("FK_core_research_subfields_fields");
+        });
+
+        modelBuilder.Entity<ResearchTopic>(entity =>
+        {
+            entity.HasKey(e => e.TopicId).HasName("PK_core_research_topics");
+
+            entity.ToTable("research_topics", "core");
+
+            entity.HasIndex(e => new { e.SubfieldId, e.NormalizedName }, "UQ_core_research_topics_subfield_name").IsUnique();
+
+            entity.Property(e => e.TopicId)
+                .HasDefaultValueSql("(newid())")
+                .HasColumnName("topic_id");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(dateadd(hour,(7),sysutcdatetime()))")
+                .HasColumnName("created_at");
+            entity.Property(e => e.NormalizedName)
+                .HasMaxLength(500)
+                .HasComputedColumnSql("(lower(ltrim(rtrim([topic_name]))))", true)
+                .HasColumnName("normalized_name");
+            entity.Property(e => e.SubfieldId).HasColumnName("subfield_id");
+            entity.Property(e => e.TopicName)
+                .IsRequired()
+                .HasMaxLength(500)
+                .HasColumnName("topic_name");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+
+            entity.HasOne(d => d.Subfield).WithMany(p => p.ResearchTopics)
+                .HasForeignKey(d => d.SubfieldId)
+                .HasConstraintName("FK_core_research_topics_subfields");
+        });
+
+        modelBuilder.Entity<SubfieldSourceMapping>(entity =>
+        {
+            entity.HasKey(e => e.MappingId).HasName("PK_core_subfield_source_mappings");
+
+            entity.ToTable("subfield_source_mappings", "core");
+
+            entity.HasIndex(e => new { e.SourceId, e.SourceRecordId }, "UQ_core_subfield_source_mappings_source_record").IsUnique();
+
+            entity.Property(e => e.MappingId)
+                .HasDefaultValueSql("(newid())")
+                .HasColumnName("mapping_id");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(dateadd(hour,(7),sysutcdatetime()))")
+                .HasColumnName("created_at");
             entity.Property(e => e.SourceId).HasColumnName("source_id");
             entity.Property(e => e.SourceRecordId)
                 .IsRequired()
                 .HasMaxLength(500)
                 .HasColumnName("source_record_id");
+            entity.Property(e => e.SourceRecordUrl)
+                .HasMaxLength(1000)
+                .HasColumnName("source_record_url");
+            entity.Property(e => e.SourceSpecificData).HasColumnName("source_specific_data");
+            entity.Property(e => e.SubfieldId).HasColumnName("subfield_id");
 
-            entity.HasOne(d => d.PipelineRun).WithMany(p => p.Works)
-                .HasForeignKey(d => d.PipelineRunId)
+            entity.HasOne(d => d.Subfield).WithMany(p => p.SubfieldSourceMappings)
+                .HasForeignKey(d => d.SubfieldId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_raw_works_pipeline_runs");
-
-            entity.HasOne(d => d.Source).WithMany(p => p.Works)
-                .HasForeignKey(d => d.SourceId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_raw_works_api_sources");
+                .HasConstraintName("FK_core_subfield_source_mappings_subfields");
         });
 
-        builder.Entity<Role>(entity =>
+        modelBuilder.Entity<TopicSourceMapping>(entity =>
+        {
+            entity.HasKey(e => e.MappingId).HasName("PK_core_topic_source_mappings");
+
+            entity.ToTable("topic_source_mappings", "core");
+
+            entity.HasIndex(e => new { e.SourceId, e.SourceRecordId }, "UQ_core_topic_source_mappings_source_record").IsUnique();
+
+            entity.Property(e => e.MappingId)
+                .HasDefaultValueSql("(newid())")
+                .HasColumnName("mapping_id");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(dateadd(hour,(7),sysutcdatetime()))")
+                .HasColumnName("created_at");
+            entity.Property(e => e.SourceId).HasColumnName("source_id");
+            entity.Property(e => e.SourceRecordId)
+                .IsRequired()
+                .HasMaxLength(500)
+                .HasColumnName("source_record_id");
+            entity.Property(e => e.SourceRecordUrl)
+                .HasMaxLength(1000)
+                .HasColumnName("source_record_url");
+            entity.Property(e => e.SourceSpecificData).HasColumnName("source_specific_data");
+            entity.Property(e => e.TopicId).HasColumnName("topic_id");
+
+            entity.HasOne(d => d.Topic).WithMany(p => p.TopicSourceMappings)
+                .HasForeignKey(d => d.TopicId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_core_topic_source_mappings_topics");
+        });
+
+        modelBuilder.Entity<Role>(entity =>
         {
             entity.HasKey(e => e.RoleId).HasName("PK_core_roles");
 
             entity.ToTable("roles", "core");
-
-            entity.HasIndex(e => e.RoleName, "UQ_core_roles_role_name").IsUnique();
 
             entity.Property(e => e.RoleId)
                 .HasDefaultValueSql("(newid())")
                 .HasColumnName("role_id");
             entity.Property(e => e.RoleName)
                 .IsRequired()
-                .HasMaxLength(100)
+                .HasMaxLength(255)
                 .HasColumnName("role_name");
         });
 
-        builder.Entity<User>(entity =>
+        modelBuilder.Entity<User>(entity =>
         {
             entity.HasKey(e => e.UserId).HasName("PK_core_users");
 
             entity.ToTable("users", "core");
 
             entity.HasIndex(e => e.Email, "UQ_core_users_email").IsUnique();
-
             entity.HasIndex(e => e.Username, "UQ_core_users_username").IsUnique();
 
             entity.Property(e => e.UserId)
@@ -599,11 +828,11 @@ public class DatabaseContext(DbContextOptions options, IClaimService claimServic
                 .HasColumnName("user_id");
             entity.Property(e => e.Email)
                 .IsRequired()
-                .HasMaxLength(256)
+                .HasMaxLength(255)
                 .HasColumnName("email");
             entity.Property(e => e.Password)
                 .IsRequired()
-                .HasMaxLength(256)
+                .HasMaxLength(512)
                 .HasColumnName("password");
             entity.Property(e => e.Phonenumber)
                 .HasMaxLength(50)
@@ -611,7 +840,7 @@ public class DatabaseContext(DbContextOptions options, IClaimService claimServic
             entity.Property(e => e.RoleId).HasColumnName("role_id");
             entity.Property(e => e.Username)
                 .IsRequired()
-                .HasMaxLength(100)
+                .HasMaxLength(255)
                 .HasColumnName("username");
 
             entity.HasOne(d => d.Role).WithMany(p => p.Users)
@@ -619,23 +848,9 @@ public class DatabaseContext(DbContextOptions options, IClaimService claimServic
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_core_users_roles");
         });
+
+        OnModelCreatingPartial(modelBuilder);
     }
 
-    public new async Task<int> SaveChangesAsync(CancellationToken cancellationToken = new())
-    {
-        foreach (var entry in ChangeTracker.Entries<IAuditedEntity>())
-            switch (entry.State)
-            {
-                case EntityState.Added:
-                    entry.Entity.CreatedBy = claimService.GetUserId();
-                    entry.Entity.CreatedOn = DateTime.Now;
-                    break;
-                case EntityState.Modified:
-                    entry.Entity.UpdatedBy = claimService.GetUserId();
-                    entry.Entity.UpdatedOn = DateTime.Now;
-                    break;
-            }
-
-        return await base.SaveChangesAsync(cancellationToken);
-    }
+    partial void OnModelCreatingPartial(ModelBuilder modelBuilder);
 }
