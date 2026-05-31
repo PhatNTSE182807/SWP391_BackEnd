@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace N_Tier.Core.Entities;
@@ -29,3 +29,4 @@ public partial class Keyword
 
     public virtual ICollection<PaperKeyword> PaperKeywords { get; set; } = new List<PaperKeyword>();
 }
+

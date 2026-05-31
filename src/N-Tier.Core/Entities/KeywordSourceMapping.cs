@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace N_Tier.Core.Entities;
@@ -20,6 +20,5 @@ public partial class KeywordSourceMapping
     public DateTime CreatedAt { get; set; }
 
     public virtual Keyword Keyword { get; set; }
-
-    public virtual ApiSource Source { get; set; }
 }
+

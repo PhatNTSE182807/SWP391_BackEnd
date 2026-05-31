@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace N_Tier.Core.Entities;
@@ -23,6 +23,8 @@ public partial class Journal
 
     public string JournalType { get; set; }
 
+    public Guid? JournalTypeId { get; set; }
+
     public string HomepageUrl { get; set; }
 
     public string CountryCode { get; set; }
@@ -37,7 +39,7 @@ public partial class Journal
 
     public int? I10Index { get; set; }
 
-    public decimal? TwoYearMeanCitedness { get; set; }
+    public double? TwoYearMeanCitedness { get; set; }
 
     public bool? IsOpenAccess { get; set; }
 
@@ -48,10 +50,6 @@ public partial class Journal
     public int? FirstPublicationYear { get; set; }
 
     public int? LastPublicationYear { get; set; }
-
-    public string Subjects { get; set; }
-
-    public string Topics { get; set; }
 
     public string CountsByYear { get; set; }
 
@@ -65,5 +63,10 @@ public partial class Journal
 
     public virtual ICollection<JournalSourceMapping> JournalSourceMappings { get; set; } = new List<JournalSourceMapping>();
 
+    public virtual ICollection<JournalTopic> JournalTopics { get; set; } = new List<JournalTopic>();
+
+    public virtual JournalType JournalTypeNavigation { get; set; }
+
     public virtual ICollection<Paper> Papers { get; set; } = new List<Paper>();
 }
+
