@@ -3,13 +3,13 @@ using System.Collections.Generic;
 
 namespace N_Tier.Core.Entities;
 
-public partial class PaperKeyword
+public partial class PaperTopic
 {
-    public Guid PaperKeywordId { get; set; }
+    public Guid PaperTopicId { get; set; }
 
     public Guid PaperId { get; set; }
 
-    public Guid KeywordId { get; set; }
+    public Guid TopicId { get; set; }
 
     public decimal? Score { get; set; }
 
@@ -17,8 +17,8 @@ public partial class PaperKeyword
 
     public DateTime CreatedAt { get; set; }
 
-    public virtual Keyword Keyword { get; set; }
-
     public virtual Paper Paper { get; set; }
+
+    public virtual ResearchTopic Topic { get; set; }
 }
 

@@ -1,11 +1,10 @@
-using System;
+﻿using System;
 using N_Tier.Application.Models;
 
 namespace N_Tier.Application.Models.Journal;
 
 public class JournalResponseModel : BaseResponseModel
 {
-    public Guid JournalId { get; set; }
     public string JournalName { get; set; }
     public string IssnL { get; set; }
     public string Publisher { get; set; }

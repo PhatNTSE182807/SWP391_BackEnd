@@ -15,7 +15,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\N-Tier.DataAccess\N-Tier.DataAccess.csproj"/>
+        <ProjectReference Include="..\N-Tier.DataAccess\N-Tier.DataAccess.csproj" />
     </ItemGroup>
 
 </Project>

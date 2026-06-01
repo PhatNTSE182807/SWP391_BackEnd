@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace N_Tier.Core.Entities;
@@ -31,3 +31,4 @@ public partial class PipelineRun
 
     public virtual ICollection<Work> Works { get; set; } = new List<Work>();
 }
+

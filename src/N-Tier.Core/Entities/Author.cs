@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace N_Tier.Core.Entities;
@@ -23,7 +23,7 @@ public partial class Author
 
     public int? I10Index { get; set; }
 
-    public decimal? TwoYearMeanCitedness { get; set; }
+    public double? TwoYearMeanCitedness { get; set; }
 
     public string RawAuthorNames { get; set; }
 
@@ -55,3 +55,4 @@ public partial class Author
 
     public virtual ICollection<PaperAuthor> PaperAuthors { get; set; } = new List<PaperAuthor>();
 }
+
