@@ -837,6 +837,9 @@ public partial class DatabaseContext : DbContext
             entity.Property(e => e.Phonenumber)
                 .HasMaxLength(50)
                 .HasColumnName("phonenumber");
+            entity.Property(e => e.IsActive)
+                .HasDefaultValue(true)
+                .HasColumnName("is_active");
             entity.Property(e => e.RoleId).HasColumnName("role_id");
             entity.Property(e => e.Username)
                 .IsRequired()

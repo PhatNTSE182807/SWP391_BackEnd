@@ -17,6 +17,11 @@ public partial class User
 
     public string Phonenumber { get; set; }
 
+    /// <summary>
+    /// Trạng thái tài khoản: true = active, false = deactivated
+    /// </summary>
+    public bool IsActive { get; set; } = true;
+
     public virtual Role Role { get; set; }
 }
 

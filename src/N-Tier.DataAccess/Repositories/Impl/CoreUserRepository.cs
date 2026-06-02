@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using N_Tier.Core.Entities;
@@ -37,4 +39,28 @@ public class CoreUserRepository : BaseRepository<User>, ICoreUserRepository
 
     public async Task<bool> IsPhoneExistsAsync(string phoneNumber)
         => await DbSet.AnyAsync(u => u.Phonenumber == phoneNumber);
+
+    public async Task<bool> IsUsernameExistsExceptAsync(string username, Guid excludeUserId)
+        => await DbSet.AnyAsync(u => u.Username == username && u.UserId != excludeUserId);
+
+    public async Task<bool> IsEmailExistsExceptAsync(string email, Guid excludeUserId)
+        => await DbSet.AnyAsync(u => u.Email == email && u.UserId != excludeUserId);
+
+    public async Task<bool> IsPhoneExistsExceptAsync(string phoneNumber, Guid excludeUserId)
+        => await DbSet.AnyAsync(u => u.Phonenumber == phoneNumber && u.UserId != excludeUserId);
+
+    public async Task<List<User>> GetAllUsersWithRoleAsync()
+    {
+        return await DbSet
+            .Include(u => u.Role)
+            .OrderBy(u => u.Username)
+            .ToListAsync();
+    }
+
+    public async Task<User> GetUserByIdAsync(Guid userId)
+    {
+        return await DbSet
+            .Include(u => u.Role)
+            .FirstOrDefaultAsync(u => u.UserId == userId);
+    }
 }

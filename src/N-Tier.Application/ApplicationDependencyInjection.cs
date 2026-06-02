@@ -40,6 +40,7 @@ public static class ApplicationDependencyInjection
         services.AddScoped<IJournalService, JournalService>();
         services.AddScoped<IPaperService, PaperService>();
         services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<IUserService, UserService>();
         
         // Search services
         services.AddScoped<IElasticsearchService, ElasticsearchService>();
@@ -57,6 +58,7 @@ public static class ApplicationDependencyInjection
 
     private static void RegisterMapper(this IServiceCollection services)
     {
+        TypeAdapterConfig.GlobalSettings.Scan(typeof(IMappingProfilesMarker).Assembly);
         services.AddMapster();
     }
 

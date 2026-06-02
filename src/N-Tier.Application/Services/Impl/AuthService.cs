@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
 using N_Tier.Application.Exceptions;
@@ -33,6 +33,9 @@ public class AuthService : IAuthService
         if (!isPasswordValid)
             throw new BadRequestException("Identifier or password is incorrect");
 
+        if (!user.IsActive)
+            throw new BadRequestException("Account is currently deactivated!");
+
         var token = JwtHelper.GenerateToken(user, user.Role.RoleName, _configuration);
 
         return new LoginResponseModel
@@ -48,22 +51,17 @@ public class AuthService : IAuthService
 
     public async Task<RegisterResponseModel> RegisterAsync(RegisterRequestModel registerRequestModel)
     {
-        // Convert enum → tên role trong DB
         var roleName = GetRoleNameString(registerRequestModel.RoleName);
 
-        // Kiểm tra trùng lặp username
         if (await _coreUserRepository.IsUsernameExistsAsync(registerRequestModel.Username))
             throw new BadRequestException("User Name is already taken");
 
-        // Kiểm tra trùng lặp email
         if (await _coreUserRepository.IsEmailExistsAsync(registerRequestModel.Email))
             throw new BadRequestException("Email is already in use");
 
-        // Kiểm tra trùng lặp phone
         if (await _coreUserRepository.IsPhoneExistsAsync(registerRequestModel.PhoneNumber))
             throw new BadRequestException("Phone number is already in use");
 
-        // Kiểm tra role tồn tại trong DB
         var selectedRole = await _coreUserRepository.GetDefaultRoleAsync(roleName);
 
         if (selectedRole == null)
@@ -91,9 +89,7 @@ public class AuthService : IAuthService
         };
     }
 
-    /// <summary>
-    /// Chuyển đổi enum sang tên role chính xác trong database
-    /// </summary>
+
     private static string GetRoleNameString(RoleNameEnum roleEnum) => roleEnum switch
     {
         RoleNameEnum.SystemAdministrator => "System Administrator",
