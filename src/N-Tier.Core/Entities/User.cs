@@ -23,5 +23,9 @@ public partial class User
     public bool IsActive { get; set; } = true;
 
     public virtual Role Role { get; set; }
+
+    public virtual ICollection<UserBookmark> UserBookmarks { get; set; } = new List<UserBookmark>();
+
+    public virtual ICollection<UserFollowingTopic> UserFollowingTopics { get; set; } = new List<UserFollowingTopic>();
 }
 

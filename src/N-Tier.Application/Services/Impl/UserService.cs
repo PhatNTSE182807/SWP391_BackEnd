@@ -13,11 +13,25 @@ namespace N_Tier.Application.Services.Impl;
 public class UserService : IUserService
 {
     private readonly ICoreUserRepository _coreUserRepository;
+    private readonly IUserBookmarkRepository _userBookmarkRepository;
+    private readonly IUserFollowingTopicRepository _userFollowingTopicRepository;
+    private readonly IPaperRepository _paperRepository;
+    private readonly IResearchTopicRepository _topicRepository;
     private readonly IClaimService _claimService;
 
-    public UserService(ICoreUserRepository coreUserRepository, IClaimService claimService)
+    public UserService(
+        ICoreUserRepository coreUserRepository, 
+        IUserBookmarkRepository userBookmarkRepository,
+        IUserFollowingTopicRepository userFollowingTopicRepository,
+        IPaperRepository paperRepository,
+        IResearchTopicRepository topicRepository,
+        IClaimService claimService)
     {
         _coreUserRepository = coreUserRepository;
+        _userBookmarkRepository = userBookmarkRepository;
+        _userFollowingTopicRepository = userFollowingTopicRepository;
+        _paperRepository = paperRepository;
+        _topicRepository = topicRepository;
         _claimService = claimService;
     }
 
@@ -164,5 +178,143 @@ public class UserService : IUserService
             RoleName = user.Role?.RoleName,
             IsActive = user.IsActive
         };
+    }
+
+    public async Task<List<UserBookmarkResponseModel>> GetBookmarksAsync()
+    {
+        var currentUserIdStr = _claimService.GetUserId();
+        if (string.IsNullOrEmpty(currentUserIdStr) || !Guid.TryParse(currentUserIdStr, out var currentUserId))
+            throw new UnauthorizedException("User is not authenticated");
+
+        var bookmarks = await _userBookmarkRepository.GetBookmarksByUserIdAsync(currentUserId);
+        
+        return bookmarks.Select(b => new UserBookmarkResponseModel
+        {
+            BookmarkId = b.BookmarkId,
+            UserId = b.UserId,
+            PaperId = b.PaperId,
+            CreatedAt = b.CreatedAt,
+            Paper = b.Paper == null ? null : new Models.Paper.PaperResponseModel
+            {
+                Title = b.Paper.Title,
+                Abstract = b.Paper.Abstract,
+                Doi = b.Paper.Doi,
+                PublicationYear = b.Paper.PublicationYear
+                // Map other necessary properties here or use Mapster
+            }
+        }).ToList();
+    }
+
+    public async Task<UserBookmarkResponseModel> AddBookmarkAsync(Guid paperId)
+    {
+        var currentUserIdStr = _claimService.GetUserId();
+        if (string.IsNullOrEmpty(currentUserIdStr) || !Guid.TryParse(currentUserIdStr, out var currentUserId))
+            throw new UnauthorizedException("User is not authenticated");
+
+        // Validate paper
+        var paper = await _paperRepository.GetFirstAsync(p => p.PaperId == paperId);
+        if (paper == null)
+            throw new NotFoundException($"Paper with id {paperId} not found");
+
+        // Check if already bookmarked
+        var isBookmarked = await _userBookmarkRepository.IsBookmarkedAsync(currentUserId, paperId);
+        if (isBookmarked)
+            throw new BadRequestException("You have already bookmarked this paper");
+
+        var bookmark = new N_Tier.Core.Entities.UserBookmark
+        {
+            UserId = currentUserId,
+            PaperId = paperId
+        };
+
+        var result = await _userBookmarkRepository.AddAsync(bookmark);
+
+        return new UserBookmarkResponseModel
+        {
+            BookmarkId = result.BookmarkId,
+            UserId = result.UserId,
+            PaperId = result.PaperId,
+            CreatedAt = result.CreatedAt
+        };
+    }
+
+    public async Task DeleteBookmarkAsync(Guid paperId)
+    {
+        var currentUserIdStr = _claimService.GetUserId();
+        if (string.IsNullOrEmpty(currentUserIdStr) || !Guid.TryParse(currentUserIdStr, out var currentUserId))
+            throw new UnauthorizedException("User is not authenticated");
+
+        var bookmark = await _userBookmarkRepository.GetBookmarkAsync(currentUserId, paperId);
+        if (bookmark == null)
+            throw new NotFoundException("Bookmark not found");
+
+        await _userBookmarkRepository.DeleteAsync(bookmark);
+    }
+
+    public async Task<List<UserFollowingTopicResponseModel>> GetFollowingTopicsAsync()
+    {
+        var currentUserIdStr = _claimService.GetUserId();
+        if (string.IsNullOrEmpty(currentUserIdStr) || !Guid.TryParse(currentUserIdStr, out var currentUserId))
+            throw new UnauthorizedException("User is not authenticated");
+
+        var followingTopics = await _userFollowingTopicRepository.GetFollowingTopicsByUserIdAsync(currentUserId);
+
+        return followingTopics.Select(f => new UserFollowingTopicResponseModel
+        {
+            FollowId = f.FollowId,
+            UserId = f.UserId,
+            TopicId = f.TopicId,
+            CreatedAt = f.CreatedAt,
+            TopicName = f.Topic?.TopicName,
+            NormalizedName = f.Topic?.NormalizedName
+        }).ToList();
+    }
+
+    public async Task<UserFollowingTopicResponseModel> FollowTopicAsync(Guid topicId)
+    {
+        var currentUserIdStr = _claimService.GetUserId();
+        if (string.IsNullOrEmpty(currentUserIdStr) || !Guid.TryParse(currentUserIdStr, out var currentUserId))
+            throw new UnauthorizedException("User is not authenticated");
+
+        // Validate topic
+        var topic = await _topicRepository.GetFirstAsync(t => t.TopicId == topicId);
+        if (topic == null)
+            throw new NotFoundException($"Topic with id {topicId} not found");
+
+        // Check if already following
+        var isFollowing = await _userFollowingTopicRepository.IsFollowingAsync(currentUserId, topicId);
+        if (isFollowing)
+            throw new BadRequestException("You are already following this topic");
+
+        var follow = new N_Tier.Core.Entities.UserFollowingTopic
+        {
+            UserId = currentUserId,
+            TopicId = topicId
+        };
+
+        var result = await _userFollowingTopicRepository.AddAsync(follow);
+
+        return new UserFollowingTopicResponseModel
+        {
+            FollowId = result.FollowId,
+            UserId = result.UserId,
+            TopicId = result.TopicId,
+            CreatedAt = result.CreatedAt,
+            TopicName = topic.TopicName,
+            NormalizedName = topic.NormalizedName
+        };
+    }
+
+    public async Task UnfollowTopicAsync(Guid topicId)
+    {
+        var currentUserIdStr = _claimService.GetUserId();
+        if (string.IsNullOrEmpty(currentUserIdStr) || !Guid.TryParse(currentUserIdStr, out var currentUserId))
+            throw new UnauthorizedException("User is not authenticated");
+
+        var follow = await _userFollowingTopicRepository.GetFollowAsync(currentUserId, topicId);
+        if (follow == null)
+            throw new NotFoundException("Follow relationship not found");
+
+        await _userFollowingTopicRepository.DeleteAsync(follow);
     }
 }
