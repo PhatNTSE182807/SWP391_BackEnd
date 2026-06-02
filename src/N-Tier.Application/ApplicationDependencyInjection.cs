@@ -32,6 +32,8 @@ public static class ApplicationDependencyInjection
         services.AddScoped<IJournalService, JournalService>();
         services.AddScoped<IPaperService, PaperService>();
         services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<ISearchService, SearchService>();
+        services.AddScoped<IHangfireJobService, HangfireJobService>();
 
         if (env.IsDevelopment())
             services.AddScoped<IEmailService, DevEmailService>();
