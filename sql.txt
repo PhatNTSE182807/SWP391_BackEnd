@@ -1,0 +1,46 @@
+USE scientific_journal_tracking_db;
+GO
+-- =========================================================
+-- core.user_bookmarks
+-- =========================================================
+CREATE TABLE core.user_bookmarks (
+    bookmark_id UNIQUEIDENTIFIER NOT NULL DEFAULT NEWID(),
+    user_id UNIQUEIDENTIFIER NOT NULL,
+    paper_id UNIQUEIDENTIFIER NOT NULL,
+    created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    CONSTRAINT PK_core_user_bookmarks
+        PRIMARY KEY (bookmark_id),
+    CONSTRAINT UQ_core_user_bookmarks_user_paper
+        UNIQUE (user_id, paper_id),
+    CONSTRAINT FK_core_user_bookmarks_users
+        FOREIGN KEY (user_id)
+        REFERENCES core.users(user_id)
+        ON DELETE CASCADE,
+    CONSTRAINT FK_core_user_bookmarks_papers
+        FOREIGN KEY (paper_id)
+        REFERENCES core.papers(paper_id)
+        ON DELETE CASCADE
+);
+GO
+-- =========================================================
+-- core.user_following_topics
+-- =========================================================
+CREATE TABLE core.user_following_topics (
+    follow_id UNIQUEIDENTIFIER NOT NULL DEFAULT NEWID(),
+    user_id UNIQUEIDENTIFIER NOT NULL,
+    topic_id UNIQUEIDENTIFIER NOT NULL,
+    created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    CONSTRAINT PK_core_user_following_topics
+        PRIMARY KEY (follow_id),
+    CONSTRAINT UQ_core_user_following_topics_user_topic
+        UNIQUE (user_id, topic_id),
+    CONSTRAINT FK_core_user_following_topics_users
+        FOREIGN KEY (user_id)
+        REFERENCES core.users(user_id)
+        ON DELETE CASCADE,
+    CONSTRAINT FK_core_user_following_topics_topics
+        FOREIGN KEY (topic_id)
+        REFERENCES core.research_topics(topic_id)
+        ON DELETE CASCADE
+);
+GO

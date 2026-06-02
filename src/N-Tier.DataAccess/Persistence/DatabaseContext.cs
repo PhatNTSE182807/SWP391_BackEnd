@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 using N_Tier.Core.Entities;
@@ -61,6 +61,10 @@ public partial class DatabaseContext : DbContext
     public virtual DbSet<SubfieldSourceMapping> SubfieldSourceMappings { get; set; }
 
     public virtual DbSet<TopicSourceMapping> TopicSourceMappings { get; set; }
+
+    public virtual DbSet<UserBookmark> UserBookmarks { get; set; }
+
+    public virtual DbSet<UserFollowingTopic> UserFollowingTopics { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
 #warning To protect potentially sensitive information in your connection string, you should move it out of source code. You can avoid scaffolding the connection string by using the Name= syntax to read it from configuration - see https://go.microsoft.com/fwlink/?linkid=2131148. For more guidance on storing connection strings, see https://go.microsoft.com/fwlink/?LinkId=723263.
@@ -850,6 +854,66 @@ public partial class DatabaseContext : DbContext
                 .HasForeignKey(d => d.RoleId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_core_users_roles");
+        });
+
+        modelBuilder.Entity<UserBookmark>(entity =>
+        {
+            entity.HasKey(e => e.BookmarkId).HasName("PK_core_user_bookmarks");
+
+            entity.ToTable("user_bookmarks", "core");
+
+            entity.HasIndex(e => new { e.UserId, e.PaperId }, "UQ_core_user_bookmarks_user_paper").IsUnique();
+
+            entity.Property(e => e.BookmarkId)
+                .HasDefaultValueSql("(newid())")
+                .HasColumnName("bookmark_id");
+            
+            entity.Property(e => e.UserId).HasColumnName("user_id");
+            entity.Property(e => e.PaperId).HasColumnName("paper_id");
+            
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(dateadd(hour,(7),sysutcdatetime()))")
+                .HasColumnName("created_at");
+
+            entity.HasOne(d => d.User).WithMany(p => p.UserBookmarks)
+                .HasForeignKey(d => d.UserId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_core_user_bookmarks_users");
+
+            entity.HasOne(d => d.Paper).WithMany(p => p.UserBookmarks)
+                .HasForeignKey(d => d.PaperId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_core_user_bookmarks_papers");
+        });
+
+        modelBuilder.Entity<UserFollowingTopic>(entity =>
+        {
+            entity.HasKey(e => e.FollowId).HasName("PK_core_user_following_topics");
+
+            entity.ToTable("user_following_topics", "core");
+
+            entity.HasIndex(e => new { e.UserId, e.TopicId }, "UQ_core_user_following_topics_user_topic").IsUnique();
+
+            entity.Property(e => e.FollowId)
+                .HasDefaultValueSql("(newid())")
+                .HasColumnName("follow_id");
+            
+            entity.Property(e => e.UserId).HasColumnName("user_id");
+            entity.Property(e => e.TopicId).HasColumnName("topic_id");
+            
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(dateadd(hour,(7),sysutcdatetime()))")
+                .HasColumnName("created_at");
+
+            entity.HasOne(d => d.User).WithMany(p => p.UserFollowingTopics)
+                .HasForeignKey(d => d.UserId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_core_user_following_topics_users");
+
+            entity.HasOne(d => d.Topic).WithMany(p => p.UserFollowingTopics)
+                .HasForeignKey(d => d.TopicId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_core_user_following_topics_topics");
         });
 
         OnModelCreatingPartial(modelBuilder);
