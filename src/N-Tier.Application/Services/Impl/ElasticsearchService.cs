@@ -49,21 +49,45 @@ public class ElasticsearchService : IElasticsearchService
     {
         try
         {
+            var paperList = papers.ToList();
+            _logger.LogInformation("Starting bulk index of {Count} papers", paperList.Count);
+            
             var response = await _client.BulkAsync(b => b
                 .Index(_settings.DefaultIndex)
-                .IndexMany(papers));
+                .IndexMany(paperList));
 
             if (!response.IsValid)
             {
-                _logger.LogError("Failed to bulk index papers: {Error}", 
-                    response.OriginalException?.Message);
+                _logger.LogError("Failed to bulk index papers. ServerError: {ServerError}, OriginalException: {Exception}, DebugInformation: {Debug}", 
+                    response.ServerError?.Error?.Reason ?? "Unknown server error",
+                    response.OriginalException?.Message ?? "No exception",
+                    response.DebugInformation);
+                    
+                // Log individual item errors
+                if (response.ItemsWithErrors != null && response.ItemsWithErrors.Any())
+            {
+                    _logger.LogError("Total items with errors: {Count}", response.ItemsWithErrors.Count());
+                    foreach (var item in response.ItemsWithErrors.Take(5)) // Log first 5 errors
+                {
+                        _logger.LogError("Bulk index item error: Index={Index}, Id={Id}, Status={Status}, ErrorType={Type}, ErrorReason={Reason}, FullError={FullError}", 
+                            item.Index, 
+                        item.Id,
+                        item.Status,
+                        item.Error?.Type ?? "N/A",
+                            item.Error?.Reason ?? "N/A",
+                            System.Text.Json.JsonSerializer.Serialize(item.Error));
+                    }
+                }
+                
                 return false;
             }
+            
+            _logger.LogInformation("Successfully bulk indexed {Count} papers", paperList.Count);
             return true;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error bulk indexing papers");
+            _logger.LogError(ex, "Exception during bulk indexing papers");
             return false;
         }
     }
