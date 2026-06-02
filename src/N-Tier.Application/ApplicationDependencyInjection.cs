@@ -1,4 +1,4 @@
-﻿using Mapster;
+using Mapster;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -33,6 +33,9 @@ public static class ApplicationDependencyInjection
         services.AddScoped<IPaperService, PaperService>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IUserService, UserService>();
+        services.AddScoped<IOpenAlexService, OpenAlexService>();
+        services.AddScoped<ICrossrefService, CrossrefService>();
+        services.AddScoped<ISemanticScholarService, SemanticScholarService>();
 
         if (env.IsDevelopment())
             services.AddScoped<IEmailService, DevEmailService>();
