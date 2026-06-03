@@ -1,69 +1,320 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using Elastic.Clients.Elasticsearch;
+using Elastic.Clients.Elasticsearch.QueryDsl;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
 using N_Tier.Application.Models.Search;
-using System.Security.Cryptography;
-using System.Text;
-using System.Text.Json;
+using N_Tier.DataAccess.Persistence;
+using Newtonsoft.Json;
 
 namespace N_Tier.Application.Services.Impl;
 
 public class SearchService : ISearchService
 {
-    private readonly IElasticsearchService _elasticsearchService;
-    private readonly ICacheService _cacheService;
+    private readonly ElasticsearchClient _elasticClient;
+    private readonly IDistributedCache _cache;
+    private readonly DatabaseContext _context;
     private readonly ILogger<SearchService> _logger;
-    private const string CacheKeyPrefix = "search:papers:";
-    private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(15);
+    private const string IndexName = "papers";
 
     public SearchService(
-        IElasticsearchService elasticsearchService,
-        ICacheService cacheService,
+        ElasticsearchClient elasticClient,
+        IDistributedCache cache,
+        DatabaseContext context,
         ILogger<SearchService> logger)
     {
-        _elasticsearchService = elasticsearchService;
-        _cacheService = cacheService;
+        _elasticClient = elasticClient;
+        _cache = cache;
+        _context = context;
         _logger = logger;
     }
 
-    public async Task<SearchPaperResponseModel> SearchPapersAsync(SearchPaperRequestModel request)
+    public async Task<SearchPaperResponse> SearchPapersAsync(SearchPaperRequest request)
     {
-        try
+
+        var cacheKey = GenerateCacheKey(request);
+
+        var cachedResult = await _cache.GetStringAsync(cacheKey);
+        if (!string.IsNullOrEmpty(cachedResult))
         {
-            // Generate cache key from request parameters
-            var cacheKey = GenerateCacheKey(request);
-
-            // Try to get from cache
-            var cachedResult = await _cacheService.GetAsync<SearchPaperResponseModel>(cacheKey);
-            if (cachedResult != null)
-            {
-                _logger.LogInformation("Cache hit for search query: {Query}", request.Q);
-                return cachedResult;
-            }
-
-            _logger.LogInformation("Cache miss for search query: {Query}", request.Q);
-
-            // Search in Elasticsearch
-            var result = await _elasticsearchService.SearchPapersAsync(request);
-
-            // Cache the result for 15 minutes
-            if (result.Results.Any())
-            {
-                await _cacheService.SetAsync(cacheKey, result, CacheDuration);
-            }
-
-            return result;
+            _logger.LogInformation("Cache hit for search query: {Query}", request.Q);
+            return JsonConvert.DeserializeObject<SearchPaperResponse>(cachedResult);
         }
-        catch (Exception ex)
+
+        var mustQueries = new List<Query>();
+
+        // Full-text search on title and abstract
+        if (!string.IsNullOrWhiteSpace(request.Q))
         {
-            _logger.LogError(ex, "Error searching papers");
-            return new SearchPaperResponseModel();
+            mustQueries.Add(new MultiMatchQuery
+            {
+                Query = request.Q,
+                Fields = new[] { "title^2", "abstract" }, 
+                Fuzziness = new Fuzziness("AUTO"),
+                Operator = Operator.Or
+            });
         }
+
+        // Year range filter - now works with integer type
+        if (request.From.HasValue || request.To.HasValue)
+        {
+            mustQueries.Add(new NumberRangeQuery(new Field("publicationYear"))
+            {
+                Gte = request.From,
+                Lte = request.To
+            });
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Language))
+        {
+            mustQueries.Add(new TermQuery(new Field("language.keyword"))
+            {
+                Value = request.Language
+            });
+        }
+
+        if (request.IsOpenAccess.HasValue)
+        {
+            mustQueries.Add(new TermQuery(new Field("isOpenAccess"))
+            {
+                Value = request.IsOpenAccess.Value
+            });
+        }
+
+        var from = (request.Page - 1) * request.Size;
+
+
+        var searchResponse = await _elasticClient.SearchAsync<PaperDocument>(s => s
+            .Index(IndexName)
+            .From(from)
+            .Size(request.Size)
+            .Query(q => q
+                .Bool(b => b
+                    .Must(mustQueries.ToArray())
+                )
+            )
+            .Highlight(h => h
+                .Fields(f => f
+                    .Add("title", hf => hf
+                        .PreTags(new[] { "<em>" })
+                        .PostTags(new[] { "</em>" })
+                    )
+                    .Add("abstract", hf => hf
+                        .PreTags(new[] { "<em>" })
+                        .PostTags(new[] { "</em>" })
+                        .FragmentSize(150)
+                        .NumberOfFragments(3)
+                    )
+                )
+            )
+            .Sort(sort => sort
+                .Score(new ScoreSort { Order = SortOrder.Desc })
+                .Field("citedByCount", new FieldSort { Order = SortOrder.Desc })
+            )
+        );
+
+        if (!searchResponse.IsValidResponse)
+        {
+            _logger.LogError("Elasticsearch error: {Error}", searchResponse.ElasticsearchServerError?.Error?.Reason);
+            throw new Exception($"Search failed: {searchResponse.ElasticsearchServerError?.Error?.Reason}");
+        }
+
+        var response = new SearchPaperResponse
+        {
+            Total = searchResponse.Total,
+            Page = request.Page,
+            Size = request.Size,
+            Results = searchResponse.Documents.Select((doc, index) =>
+            {
+                var hit = searchResponse.Hits.ElementAt(index);
+                return new SearchPaperResultItem
+                {
+                    PaperId = doc.PaperId,
+                    Title = doc.Title,
+                    Abstract = doc.Abstract,
+                    PublicationYear = doc.PublicationYear,
+                    CitedByCount = doc.CitedByCount,
+                    Highlight = new SearchHighlight
+                    {
+                        Title = hit.Highlight?.TryGetValue("title", out var titleHighlights) == true
+                            ? titleHighlights.ToList()
+                            : new List<string>(),
+                        Abstract = hit.Highlight?.TryGetValue("abstract", out var abstractHighlights) == true
+                            ? abstractHighlights.ToList()
+                            : new List<string>()
+                    }
+                };
+            }).ToList()
+        };
+
+        var cacheOptions = new DistributedCacheEntryOptions
+        {
+            AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(15)
+        };
+        await _cache.SetStringAsync(cacheKey, JsonConvert.SerializeObject(response), cacheOptions);
+
+        _logger.LogInformation("Search completed. Total results: {Total}", response.Total);
+        return response;
     }
 
-    private string GenerateCacheKey(SearchPaperRequestModel request)
+    public async Task IndexPaperAsync(Core.Entities.Paper paper)
     {
-        // Serialize request to JSON and create hash for cache key
-        var json = JsonSerializer.Serialize(request);
-        var hash = Convert.ToHexString(MD5.HashData(Encoding.UTF8.GetBytes(json)));
-        return $"{CacheKeyPrefix}{hash}";
+        var document = MapToDocument(paper);
+        var response = await _elasticClient.IndexAsync(document, idx => idx.Index(IndexName));
+
+        if (!response.IsValidResponse)
+        {
+            _logger.LogError("Failed to index paper {PaperId}: {Error}",
+                paper.PaperId, response.ElasticsearchServerError?.Error?.Reason);
+            throw new Exception($"Failed to index paper: {response.ElasticsearchServerError?.Error?.Reason}");
+        }
+
+        _logger.LogInformation("Successfully indexed paper {PaperId}", paper.PaperId);
     }
+
+    public async Task BulkIndexPapersAsync()
+    {
+        _logger.LogInformation("Starting bulk indexing of papers...");
+
+        // Create index if not exists
+        var indexExists = await _elasticClient.Indices.ExistsAsync(IndexName);
+        if (!indexExists.Exists)
+        {
+            await CreateIndexAsync();
+        }
+
+        var batchSize = 1000;
+        var skip = 0;
+        var totalIndexed = 0;
+
+        while (true)
+        {
+            var papers = await _context.Papers
+                .AsNoTracking()
+                .OrderBy(p => p.PaperId)
+                .Skip(skip)
+                .Take(batchSize)
+                .ToListAsync();
+
+            if (!papers.Any())
+                break;
+
+            var documents = papers.Select(MapToDocument).ToList();
+
+            var bulkResponse = await _elasticClient.BulkAsync(b => b
+                .Index(IndexName)
+                .IndexMany(documents)
+            );
+
+            if (!bulkResponse.IsValidResponse)
+            {
+                _logger.LogError("Bulk indexing failed: {Error}",
+                    bulkResponse.ElasticsearchServerError?.Error?.Reason);
+                throw new Exception($"Bulk indexing failed: {bulkResponse.ElasticsearchServerError?.Error?.Reason}");
+            }
+
+            totalIndexed += papers.Count;
+            skip += batchSize;
+
+            _logger.LogInformation("Indexed {Count} papers. Total: {Total}", papers.Count, totalIndexed);
+        }
+
+        _logger.LogInformation("Bulk indexing completed. Total papers indexed: {Total}", totalIndexed);
+    }
+
+    public async Task DeleteIndexAsync()
+    {
+        _logger.LogInformation("Deleting index {IndexName}...", IndexName);
+        
+        var response = await _elasticClient.Indices.DeleteAsync(IndexName);
+        
+        if (!response.IsValidResponse)
+        {
+            _logger.LogError("Failed to delete index {IndexName}: {Error}",
+                IndexName, response.ElasticsearchServerError?.Error?.Reason);
+            throw new Exception($"Failed to delete index: {response.ElasticsearchServerError?.Error?.Reason}");
+        }
+        
+        _logger.LogInformation("Index {IndexName} deleted successfully", IndexName);
+    }
+
+    public async Task RecreateIndexAsync()
+    {
+        _logger.LogInformation("Recreating index {IndexName} with correct mapping...", IndexName);
+        
+        // Delete index if exists
+        var indexExists = await _elasticClient.Indices.ExistsAsync(IndexName);
+        if (indexExists.Exists)
+        {
+            await DeleteIndexAsync();
+        }
+        
+        // Create new index with correct mapping
+        await CreateIndexAsync();
+        
+        // Reindex all papers
+        await BulkIndexPapersAsync();
+        
+        _logger.LogInformation("Index {IndexName} recreated successfully", IndexName);
+    }
+
+    private async Task CreateIndexAsync()
+    {
+        var response = await _elasticClient.Indices.CreateAsync(IndexName, c => c
+            .Mappings(m => m
+                .Properties<PaperDocument>(p => p
+                    .Keyword(k => k.PaperId)
+                    .Text(t => t.Title, td => td.Analyzer("standard"))
+                    .Text(t => t.Abstract, td => td.Analyzer("standard"))
+                    .IntegerNumber(i => i.PublicationYear)
+                    .IntegerNumber(i => i.CitedByCount)
+                    .Keyword(k => k.Language)
+                    .Boolean(b => b.IsOpenAccess)
+                )
+            )
+        );
+
+        if (!response.IsValidResponse)
+        {
+            _logger.LogError("Failed to create index: {Error}",
+                response.ElasticsearchServerError?.Error?.Reason);
+            throw new Exception($"Failed to create index: {response.ElasticsearchServerError?.Error?.Reason}");
+        }
+
+        _logger.LogInformation("Index {IndexName} created successfully", IndexName);
+    }
+
+    private PaperDocument MapToDocument(Core.Entities.Paper paper)
+    {
+        return new PaperDocument
+        {
+            PaperId = paper.PaperId,
+            Title = paper.Title,
+            Abstract = paper.Abstract,
+            PublicationYear = paper.PublicationYear,
+            CitedByCount = paper.CitedByCount,
+            Language = paper.Language,
+            IsOpenAccess = paper.IsOpenAccess
+        };
+    }
+
+    private string GenerateCacheKey(SearchPaperRequest request)
+    {
+        return $"search:papers:{request.Q}:{request.Page}:{request.Size}:{request.From}:{request.To}:{request.Language}:{request.IsOpenAccess}";
+    }
+}
+
+public class PaperDocument
+{
+    public Guid PaperId { get; set; }
+    public string Title { get; set; }
+    public string Abstract { get; set; }
+    public int? PublicationYear { get; set; }
+    public int? CitedByCount { get; set; }
+    public string Language { get; set; }
+    public bool? IsOpenAccess { get; set; }
 }

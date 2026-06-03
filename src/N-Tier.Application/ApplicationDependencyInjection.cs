@@ -41,14 +41,8 @@ public static class ApplicationDependencyInjection
         services.AddScoped<IPaperService, PaperService>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IUserService, UserService>();
-        
-        // Search services
-        services.AddScoped<IElasticsearchService, ElasticsearchService>();
-        services.AddScoped<ICacheService, RedisCacheService>();
         services.AddScoped<ISearchService, SearchService>();
-        
-        // Background jobs
-        services.AddScoped<IReindexJob, ReindexJob>();
+        services.AddScoped<IHangfireJobService, HangfireJobService>();
 
         if (env.IsDevelopment())
             services.AddScoped<IEmailService, DevEmailService>();

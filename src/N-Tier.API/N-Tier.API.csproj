@@ -16,8 +16,12 @@
         <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.21.2" />
         <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
         <PackageReference Include="Swashbuckle.AspNetCore" Version="8.1.1" />
-        <PackageReference Include="Hangfire.AspNetCore" Version="1.8.14" />
+        <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="9.0.4" />
+        <PackageReference Include="StackExchange.Redis" Version="2.8.0" />
+        <PackageReference Include="Hangfire.Core" Version="1.8.14" />
         <PackageReference Include="Hangfire.SqlServer" Version="1.8.14" />
+        <PackageReference Include="Elastic.Clients.Elasticsearch" Version="8.14.0" />
+        <PackageReference Include="Hangfire.AspNetCore" Version="1.8.14" />
     </ItemGroup>
 
     <ItemGroup>
