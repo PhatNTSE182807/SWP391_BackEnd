@@ -1,21 +1,26 @@
 version: "3.9"
-
 services:
-    n-tier-api:
-        container_name: n-tier-api
-        build:
-            context: .
-            dockerfile: Dockerfile
-        ports:
-            - "8080:80"
-        depends_on:
-            - n-tier-sqlserver
-
-    n-tier-sqlserver:
-        container_name: n-tier-sqlserver
-        image: "mcr.microsoft.com/mssql/server:2022-latest"
-        ports:
-            - "1433:1433"
-        environment:
-            SA_PASSWORD: "S3cur3P@ssW0rd!"
-            ACCEPT_EULA: "Y"
+  n-tier-api:
+    container_name: n-tier-api
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+      - "8443:443"
+    environment:
+      - ASPNETCORE_URLS=http://+:8080;https://+:443
+      - ASPNETCORE_Kestrel__Certificates__Default__Path=/certs/cert.pem
+      - ASPNETCORE_Kestrel__Certificates__Default__KeyPath=/certs/key.pem
+      - ConnectionStrings__ConnectionString=Server=13.213.7.89,1433;Database=scientific_journal_tracking_db;User ID=backend_user;Password=NguyeN2004@;TrustServerCertificate=True;
+    volumes:
+      - ./certs:/certs
+    depends_on:
+      - redis
+    restart: always
+  redis:
+    container_name: redis
+    image: redis:latest
+    ports:
+      - "6379:6379"
+    restart: always

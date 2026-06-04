@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using N_Tier.Core.Entities;
@@ -13,14 +13,11 @@ public interface ICoreUserRepository : IBaseRepository<User>
     Task<bool> IsUsernameExistsAsync(string username);
     Task<bool> IsEmailExistsAsync(string email);
     Task<bool> IsPhoneExistsAsync(string phoneNumber);
+    
+    Task<bool> IsUsernameExistsExceptAsync(string username, Guid excludeUserId);
+    Task<bool> IsEmailExistsExceptAsync(string email, Guid excludeUserId);
+    Task<bool> IsPhoneExistsExceptAsync(string phoneNumber, Guid excludeUserId);
 
-    /// <summary>
-    /// Lấy tất cả users kèm thông tin role (dùng cho Admin User Management)
-    /// </summary>
     Task<List<User>> GetAllUsersWithRoleAsync();
-
-    /// <summary>
-    /// Lấy user theo UserId kèm thông tin role
-    /// </summary>
     Task<User> GetUserByIdAsync(Guid userId);
 }

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace N_Tier.Core.Entities;
@@ -33,3 +33,4 @@ public partial class Work
 
     public virtual ApiSource Source { get; set; }
 }
+
