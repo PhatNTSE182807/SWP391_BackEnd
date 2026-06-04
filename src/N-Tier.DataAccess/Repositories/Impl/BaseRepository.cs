@@ -1,4 +1,4 @@
-using System.Linq.Expressions;
+﻿using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using N_Tier.Core.Common;
 using N_Tier.Core.Exceptions;
@@ -35,7 +35,7 @@ public class BaseRepository<TEntity> : IBaseRepository<TEntity> where TEntity : 
 
     public async Task<List<TEntity>> GetAllAsync(Expression<Func<TEntity, bool>> predicate)
     {
-        return await DbSet.Where(predicate).ToListAsync();
+        return await DbSet.Where(predicate).AsNoTracking().ToListAsync();
     }
 
     public async Task<TEntity> GetFirstAsync(Expression<Func<TEntity, bool>> predicate)
@@ -44,7 +44,7 @@ public class BaseRepository<TEntity> : IBaseRepository<TEntity> where TEntity : 
 
         if (entity == null) throw new ResourceNotFoundException(typeof(TEntity));
 
-        return await DbSet.Where(predicate).FirstOrDefaultAsync();
+        return entity;
     }
 
     public async Task<TEntity> UpdateAsync(TEntity entity)
