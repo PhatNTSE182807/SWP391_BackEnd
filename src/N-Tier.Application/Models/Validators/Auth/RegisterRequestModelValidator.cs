@@ -1,4 +1,4 @@
-﻿using System.Text.RegularExpressions;
+using System.Text.RegularExpressions;
 using FluentValidation;
 using N_Tier.Application.Models.Auth;
 
@@ -46,6 +46,6 @@ public class RegisterRequestModelValidator : AbstractValidator<RegisterRequestMo
 
         RuleFor(r => r.RoleName)
             .IsInEnum()
-            .WithMessage("Role is required and must be a valid role (Student, Lecturer, Researcher, System Administrator)");
+            .WithMessage("Role is required and must be a valid role (Student, Lecturer, Researcher)");
     }
 }

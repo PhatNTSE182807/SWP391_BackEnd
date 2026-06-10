@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using N_Tier.Core.Entities;
 using N_Tier.Shared.Helpers;
@@ -15,21 +15,29 @@ public static class DatabaseContextSeed
             return;
         }
 
-        if (!await context.CoreUsers.AnyAsync())
+        var role = await context.CoreRoles.FirstOrDefaultAsync(r => r.RoleName == "System Administrator");
+        if (role != null)
         {
-            var role = await context.CoreRoles.FirstOrDefaultAsync(r => r.RoleName == "System Administrator");
-            if (role != null)
+            var adminUser = await context.CoreUsers.FirstOrDefaultAsync(u => u.Username == "system_admin");
+            if (adminUser == null)
             {
                 var customUser = new User
                 {
                     UserId = Guid.NewGuid(),
                     Username = "system_admin",
-                    Email = "admin@journal.com",
-                    Password = PasswordHasher.HashPassword("Admin123!?"),
+                    Email = "admin@cloud.com",
+                    Password = PasswordHasher.HashPassword("Admin123@"),
                     RoleId = role.RoleId,
                     Phonenumber = "0987654321"
                 };
                 await context.CoreUsers.AddAsync(customUser);
+            }
+            else
+            {
+                // Update existing admin user
+                adminUser.Email = "admin@cloud.com";
+                adminUser.Password = PasswordHasher.HashPassword("Admin123@");
+                context.CoreUsers.Update(adminUser);
             }
         }
 

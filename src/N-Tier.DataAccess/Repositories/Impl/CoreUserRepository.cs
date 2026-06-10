@@ -18,6 +18,13 @@ public class CoreUserRepository : BaseRepository<User>, ICoreUserRepository
             .FirstOrDefaultAsync(u => u.Username == identifier || u.Email == identifier || u.Phonenumber == identifier);
     }
 
+    public async Task<User> GetUserWithRoleByEmailAsync(string email)
+    {
+        return await DbSet
+            .Include(u => u.Role)
+            .FirstOrDefaultAsync(u => u.Email == email);
+    }
+
     public async Task<Role> GetDefaultRoleAsync(string roleName)
     {
         return await Context.CoreRoles

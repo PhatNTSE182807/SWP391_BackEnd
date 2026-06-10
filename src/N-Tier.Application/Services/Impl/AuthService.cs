@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
 using N_Tier.Application.Exceptions;
@@ -23,15 +23,15 @@ public class AuthService : IAuthService
 
     public async Task<LoginResponseModel> LoginAsync(LoginRequestModel loginRequestModel)
     {
-        var user = await _coreUserRepository.GetUserWithRoleByIdentifierAsync(loginRequestModel.Identifier);
+        var user = await _coreUserRepository.GetUserWithRoleByEmailAsync(loginRequestModel.Email);
 
         if (user == null)
-            throw new NotFoundException("Identifier or password is incorrect");
+            throw new NotFoundException("Email or password is incorrect");
 
         var isPasswordValid = PasswordHasher.VerifyPassword(loginRequestModel.Password, user.Password);
 
         if (!isPasswordValid)
-            throw new BadRequestException("Identifier or password is incorrect");
+            throw new BadRequestException("Email or password is incorrect");
 
         if (!user.IsActive)
             throw new BadRequestException("Account is currently deactivated!");
@@ -92,7 +92,6 @@ public class AuthService : IAuthService
 
     private static string GetRoleNameString(RoleNameEnum roleEnum) => roleEnum switch
     {
-        RoleNameEnum.SystemAdministrator => "System Administrator",
         RoleNameEnum.Researcher          => "Researcher",
         RoleNameEnum.Lecturer            => "Lecturer",
         RoleNameEnum.Student             => "Student",
