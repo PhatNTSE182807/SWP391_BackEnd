@@ -5,9 +5,6 @@ namespace N_Tier.Application.Models.Auth;
 /// </summary>
 public enum RoleNameEnum
 {
-    [System.Runtime.Serialization.EnumMember(Value = "System Administrator")]
-    SystemAdministrator,
-
     Researcher,
 
     Lecturer,
