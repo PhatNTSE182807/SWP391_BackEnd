@@ -20,15 +20,14 @@ public class AnalyticsService : IAnalyticsService
     /// <inheritdoc />
     public async Task<KeywordTrendDto> GetKeywordTrendsAsync(string keyword, int years = 5)
     {
-        // Find keyword by name (case-insensitive via normalized_name column)
+        // Partial case-insensitive match on normalized_name
         var normalizedKeyword = keyword.Trim().ToLower();
 
         var keywordEntity = await _context.Keywords
-            .FirstOrDefaultAsync(k => k.NormalizedName == normalizedKeyword);
+            .FirstOrDefaultAsync(k => k.NormalizedName.Contains(normalizedKeyword));
 
         if (keywordEntity == null)
         {
-            // Return empty result if keyword not found
             return new KeywordTrendDto
             {
                 Keyword = keyword,
@@ -72,6 +71,63 @@ public class AnalyticsService : IAnalyticsService
         return new KeywordTrendDto
         {
             Keyword = keywordEntity.KeywordName,
+            YearlyCounts = result
+        };
+    }
+
+    /// <inheritdoc />
+    public async Task<TopicTrendDto> GetTopicTrendsAsync(string topic, int years = 5)
+    {
+        // Partial case-insensitive match on normalized_name
+        var normalizedTopic = topic.Trim().ToLower();
+
+        var topicEntity = await _context.ResearchTopics
+            .FirstOrDefaultAsync(t => t.NormalizedName.Contains(normalizedTopic));
+
+        if (topicEntity == null)
+        {
+            return new TopicTrendDto
+            {
+                TopicName = topic,
+                YearlyCounts = new List<YearlyCountDto>()
+            };
+        }
+
+        // Use the latest year in DB as reference (not DateTime.UtcNow)
+        var maxYear = await _context.Papers
+            .Where(p => p.PublicationYear != null)
+            .MaxAsync(p => (int?)p.PublicationYear) ?? DateTime.UtcNow.Year;
+
+        var startYear = maxYear - years + 1;
+
+        // Get yearly paper counts for this topic
+        var paperYears = await _context.PaperTopics
+            .Include(pt => pt.Paper)
+            .Where(pt => pt.TopicId == topicEntity.TopicId
+                      && pt.Paper.PublicationYear != null
+                      && pt.Paper.PublicationYear >= startYear
+                      && pt.Paper.PublicationYear <= maxYear)
+            .Select(pt => pt.Paper.PublicationYear!.Value)
+            .ToListAsync();
+
+        var yearlyCounts = paperYears
+            .GroupBy(y => y)
+            .ToDictionary(g => g.Key, g => g.Count());
+
+        // Fill missing years with 0
+        var result = new List<YearlyCountDto>();
+        for (int y = startYear; y <= maxYear; y++)
+        {
+            result.Add(new YearlyCountDto
+            {
+                Year = y,
+                Count = yearlyCounts.TryGetValue(y, out var count) ? count : 0
+            });
+        }
+
+        return new TopicTrendDto
+        {
+            TopicName = topicEntity.TopicName,
             YearlyCounts = result
         };
     }

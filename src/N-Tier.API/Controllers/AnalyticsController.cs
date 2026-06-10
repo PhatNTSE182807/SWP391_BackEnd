@@ -38,6 +38,21 @@ public class AnalyticsController : ApiController
     }
 
     /// <summary>
+    /// Returns yearly paper counts for a research topic to draw a line chart.
+    /// </summary>
+    /// <param name="topic">The topic name to search (e.g., "Machine Learning in Healthcare")</param>
+    /// <param name="years">Number of past years to include (default: 5)</param>
+    [HttpGet("topic-trends")]
+    public async Task<IActionResult> GetTopicTrendsAsync([FromQuery] string topic, [FromQuery] int years = 5)
+    {
+        if (string.IsNullOrWhiteSpace(topic))
+            return BadRequest(ApiResult<TopicTrendDto>.Failure(new[] { "topic is required." }));
+
+        var result = await _analyticsService.GetTopicTrendsAsync(topic, years);
+        return Ok(ApiResult<TopicTrendDto>.Success(result));
+    }
+
+    /// <summary>
     /// Returns Top 10 topics with highest publication growth in the latest available period.
     /// </summary>
     [HttpGet("trending-topics")]

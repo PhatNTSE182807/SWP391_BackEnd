@@ -24,6 +24,13 @@ public class TrendingTopicDto
     public string Trend { get; set; } // "up", "down", "stable"
 }
 
+// GET /api/analytics/topic-trends
+public class TopicTrendDto
+{
+    public string TopicName { get; set; }
+    public List<YearlyCountDto> YearlyCounts { get; set; } = new();
+}
+
 // GET /api/analytics/dashboard
 public class ResearcherDashboardDto
 {
