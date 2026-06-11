@@ -33,9 +33,6 @@ public static class ApplicationDependencyInjection
         services.AddScoped<IPaperService, PaperService>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IUserService, UserService>();
-        services.AddScoped<IOpenAlexService, OpenAlexService>();
-        services.AddScoped<ICrossrefService, CrossrefService>();
-        services.AddScoped<ISemanticScholarService, SemanticScholarService>();
         services.AddScoped<ISearchService, SearchService>();
         services.AddScoped<IHangfireJobService, HangfireJobService>();
         services.AddScoped<IDashboardService, DashboardService>();
@@ -49,7 +46,6 @@ public static class ApplicationDependencyInjection
 
     private static void RegisterMapper(this IServiceCollection services)
     {
-        TypeAdapterConfig.GlobalSettings.Scan(typeof(IMappingProfilesMarker).Assembly);
         services.AddMapster();
     }
 

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -29,9 +29,20 @@ public class AdminController(IUserService userService) : ApiController
     /// Chỉ dành cho System Administrator.
     /// </summary>
     [HttpPut("users/{userId:guid}/deactivate")]
-    public async Task<IActionResult> ToggleDeactivateUserAsync(Guid userId)
+    public async Task<IActionResult> DeactivateUserAsync(Guid userId)
     {
-        var result = await userService.ToggleDeactivateUserAsync(userId);
+        var result = await userService.DeactivateUserAsync(userId);
+        return Ok(ApiResult<UserResponseModel>.Success(result));
+    }
+
+    /// <summary>
+    /// Kích hoạt lại tài khoản user đã bị deactivated.
+    /// Chỉ dành cho System Administrator.
+    /// </summary>
+    [HttpPut("users/{userId:guid}/activate")]
+    public async Task<IActionResult> ActivateUserAsync(Guid userId)
+    {
+        var result = await userService.ActivateUserAsync(userId);
         return Ok(ApiResult<UserResponseModel>.Success(result));
     }
 

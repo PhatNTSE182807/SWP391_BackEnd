@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -50,11 +50,10 @@ public class UserService : IUserService
         }).ToList();
     }
 
-    public async Task<UserResponseModel> ToggleDeactivateUserAsync(Guid userId)
+    public async Task<UserResponseModel> DeactivateUserAsync(Guid userId)
     {
         var currentUserId = _claimService.GetUserId();
 
-        // Admin không được deactivate chính mình
         if (currentUserId != null && Guid.Parse(currentUserId) == userId)
             throw new BadRequestException("You cannot deactivate your own account");
 
@@ -63,12 +62,38 @@ public class UserService : IUserService
         if (user == null)
             throw new NotFoundException($"User with id '{userId}' was not found");
 
-        // Không được deactivate user có role System Administrator
         if (user.Role?.RoleName == "System Administrator")
             throw new BadRequestException("Cannot deactivate a System Administrator account");
 
-        // Toggle trạng thái active
-        user.IsActive = !user.IsActive;
+        if (!user.IsActive)
+            throw new BadRequestException("User is already deactivated");
+
+        user.IsActive = false;
+
+        await _coreUserRepository.UpdateAsync(user);
+
+        return new UserResponseModel
+        {
+            UserId      = user.UserId,
+            Username    = user.Username,
+            Email       = user.Email,
+            Phonenumber = user.Phonenumber,
+            RoleName    = user.Role?.RoleName,
+            IsActive    = user.IsActive
+        };
+    }
+
+    public async Task<UserResponseModel> ActivateUserAsync(Guid userId)
+    {
+        var user = await _coreUserRepository.GetUserByIdAsync(userId);
+
+        if (user == null)
+            throw new NotFoundException($"User with id '{userId}' was not found");
+
+        if (user.IsActive)
+            throw new BadRequestException("User is already active");
+
+        user.IsActive = true;
 
         await _coreUserRepository.UpdateAsync(user);
 
@@ -96,9 +121,11 @@ public class UserService : IUserService
         if (user == null)
             throw new NotFoundException($"User with id '{userId}' was not found");
 
-        // Không được xóa user có role System Administrator
         if (user.Role?.RoleName == "System Administrator")
             throw new BadRequestException("Cannot delete a System Administrator account");
+
+        if (user.IsActive)
+            throw new BadRequestException("User must be deactivated before deletion");
 
         await _coreUserRepository.DeleteAsync(user);
     }

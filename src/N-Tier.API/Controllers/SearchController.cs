@@ -1,4 +1,4 @@
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using N_Tier.Application.Models;
@@ -39,7 +39,7 @@ public class SearchController : ApiController
     /// This runs synchronously and may take time
     /// </summary>
     [HttpPost("reindex")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,System Administrator")]
     public async Task<IActionResult> ReindexPapers()
     {
         await _searchService.BulkIndexPapersAsync();
@@ -51,7 +51,7 @@ public class SearchController : ApiController
     /// This uses Hangfire and returns immediately
     /// </summary>
     [HttpPost("reindex/background")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,System Administrator")]
     public IActionResult ReindexPapersBackground()
     {
         var jobId = _hangfireJobService.EnqueueReindexJob();
@@ -62,7 +62,7 @@ public class SearchController : ApiController
     /// Delete Elasticsearch index (Admin only - DESTRUCTIVE!)
     /// </summary>
     [HttpDelete("index")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,System Administrator")]
     public async Task<IActionResult> DeleteIndex()
     {
         await _searchService.DeleteIndexAsync();
@@ -74,7 +74,7 @@ public class SearchController : ApiController
     /// This will DELETE the old index and create a new one
     /// </summary>
     [HttpPost("index/recreate")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,System Administrator")]
     public async Task<IActionResult> RecreateIndex()
     {
         await _searchService.RecreateIndexAsync();
@@ -85,7 +85,7 @@ public class SearchController : ApiController
     /// Recreate index in background (Admin only - recommended for large datasets)
     /// </summary>
     [HttpPost("index/recreate/background")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,System Administrator")]
     public IActionResult RecreateIndexBackground()
     {
         var jobId = _hangfireJobService.EnqueueRecreateIndexJob();
