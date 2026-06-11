@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -164,7 +164,9 @@ public class SearchService : ISearchService
     public async Task IndexPaperAsync(Core.Entities.Paper paper)
     {
         var document = MapToDocument(paper);
-        var response = await _elasticClient.IndexAsync(document, idx => idx.Index(IndexName));
+        var response = await _elasticClient.IndexAsync(document, idx => idx
+            .Index(IndexName)
+            .Id(paper.PaperId.ToString()));
 
         if (!response.IsValidResponse)
         {
@@ -180,12 +182,15 @@ public class SearchService : ISearchService
     {
         _logger.LogInformation("Starting bulk indexing of papers...");
 
-        // Create index if not exists
+        // Always recreate the index before bulk indexing so old duplicate docs are not kept
         var indexExists = await _elasticClient.Indices.ExistsAsync(IndexName);
-        if (!indexExists.Exists)
+        if (indexExists.Exists)
         {
-            await CreateIndexAsync();
+            _logger.LogInformation("Deleting existing index {IndexName} before reindexing to avoid duplicate documents", IndexName);
+            await DeleteIndexAsync();
         }
+
+        await CreateIndexAsync();
 
         var batchSize = 1000;
         var skip = 0;
@@ -207,14 +212,19 @@ public class SearchService : ISearchService
 
             var bulkResponse = await _elasticClient.BulkAsync(b => b
                 .Index(IndexName)
-                .IndexMany(documents)
+                .Refresh(Refresh.WaitFor)
+                .IndexMany(documents, (descriptor, doc) =>
+                    descriptor.Id(doc.PaperId.ToString()))
             );
 
-            if (!bulkResponse.IsValidResponse)
+            if (!bulkResponse.IsValidResponse || bulkResponse.Errors)
             {
-                _logger.LogError("Bulk indexing failed: {Error}",
-                    bulkResponse.ElasticsearchServerError?.Error?.Reason);
-                throw new Exception($"Bulk indexing failed: {bulkResponse.ElasticsearchServerError?.Error?.Reason}");
+                var errorMessage = bulkResponse.ElasticsearchServerError?.Error?.Reason
+                    ?? bulkResponse.Items?.FirstOrDefault(x => x.Error != null)?.Error?.Reason
+                    ?? "Unknown bulk indexing error";
+
+                _logger.LogError("Bulk indexing failed: {Error}", errorMessage);
+                throw new Exception($"Bulk indexing failed: {errorMessage}");
             }
 
             totalIndexed += papers.Count;

@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using N_Tier.Core.Entities;
 using N_Tier.Shared.Helpers;
@@ -9,28 +10,71 @@ public static class DatabaseContextSeed
 {
     public static async Task SeedDatabaseAsync(DatabaseContext context)
     {
-        if (!await IsTableExistsAsync(context, "core", "users") ||
-            !await IsTableExistsAsync(context, "core", "roles"))
-        {
+        if (!await IsTableExistsAsync(context, "core", "roles"))
             return;
+
+        // Seed roles nếu chưa có
+        await SeedRolesAsync(context);
+
+        if (!await IsTableExistsAsync(context, "core", "users"))
+            return;
+
+        // Seed admin users
+        await SeedAdminUsersAsync(context);
+    }
+
+    private static async Task SeedRolesAsync(DatabaseContext context)
+    {
+        var roles = new[] { "System Administrator", "Researcher", "Lecturer", "Student" };
+
+        foreach (var roleName in roles)
+        {
+            if (!await context.CoreRoles.AnyAsync(r => r.RoleName == roleName))
+            {
+                await context.CoreRoles.AddAsync(new Role
+                {
+                    RoleId = Guid.NewGuid(),
+                    RoleName = roleName
+                });
+            }
         }
 
-        if (!await context.CoreUsers.AnyAsync())
+        await context.SaveChangesAsync();
+    }
+
+    private static async Task SeedAdminUsersAsync(DatabaseContext context)
+    {
+        var role = await context.CoreRoles
+            .FirstOrDefaultAsync(r => r.RoleName == "System Administrator");
+
+        if (role == null)
+            return;
+
+        
+        if (!await context.CoreUsers.AnyAsync(u => u.Username == "system_admin" || u.Email == "admin@journal.com"))
         {
-            var role = await context.CoreRoles.FirstOrDefaultAsync(r => r.RoleName == "System Administrator");
-            if (role != null)
+            await context.CoreUsers.AddAsync(new User
             {
-                var customUser = new User
-                {
-                    UserId = Guid.NewGuid(),
-                    Username = "system_admin",
-                    Email = "admin@journal.com",
-                    Password = PasswordHasher.HashPassword("Admin123!?"),
-                    RoleId = role.RoleId,
-                    Phonenumber = "0987654321"
-                };
-                await context.CoreUsers.AddAsync(customUser);
-            }
+                UserId = Guid.NewGuid(),
+                Username = "system_admin",
+                Email = "admin@journal.com",
+                Password = PasswordHasher.HashPassword("Admin123!?"),
+                RoleId = role.RoleId,
+                Phonenumber = "0987654321"
+            });
+        }
+
+        if (!await context.CoreUsers.AnyAsync(u => u.Username == "admin2" || u.Email == "admin@gmail.com"))
+        {
+            await context.CoreUsers.AddAsync(new User
+            {
+                UserId = Guid.NewGuid(),
+                Username = "admin2",
+                Email = "admin@gmail.com",
+                Password = PasswordHasher.HashPassword("Admin123!?"),
+                RoleId = role.RoleId,
+                Phonenumber = "0987654322"
+            });
         }
 
         await context.SaveChangesAsync();
