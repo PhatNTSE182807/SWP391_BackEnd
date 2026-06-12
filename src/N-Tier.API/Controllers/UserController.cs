@@ -15,6 +15,7 @@ public class UserController(IUserService userService) : ApiController
     /// Lấy thông tin cá nhân của user đang đăng nhập.
     /// </summary>
     [HttpGet("profile")]
+    [HttpGet("/api/profile")]
     public async Task<IActionResult> GetProfileAsync()
     {
         var result = await userService.GetProfileAsync();

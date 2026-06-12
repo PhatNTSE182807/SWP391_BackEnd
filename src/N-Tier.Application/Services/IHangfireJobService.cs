@@ -8,4 +8,9 @@ public interface IHangfireJobService
     Task ReindexPapersAsync();
     string EnqueueReindexJob();
     string EnqueueRecreateIndexJob();
+
+    // Author background jobs
+    Task ReindexAuthorsAsync();
+    string EnqueueReindexAuthorsJob();
+    string EnqueueRecreateAuthorsIndexJob();
 }

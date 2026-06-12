@@ -25,7 +25,14 @@ public class HangfireJobService : IHangfireJobService
             "*/5 * * * *" // Every 5 minutes
         );
 
-        _logger.LogInformation("Recurring jobs scheduled successfully - Reindex every 5 minutes");
+        // Reindex authors every 5 minutes
+        RecurringJob.AddOrUpdate(
+            "reindex-authors-every-5min",
+            () => ReindexAuthorsAsync(),
+            "*/5 * * * *" // Every 5 minutes
+        );
+
+        _logger.LogInformation("Recurring jobs scheduled successfully - Reindex papers and authors every 5 minutes");
     }
 
     [AutomaticRetry(Attempts = 3)]
@@ -56,6 +63,37 @@ public class HangfireJobService : IHangfireJobService
     {
         var jobId = BackgroundJob.Enqueue<ISearchService>(x => x.RecreateIndexAsync());
         _logger.LogInformation("Recreate index job enqueued with ID: {JobId}", jobId);
+        return jobId;
+    }
+
+    [AutomaticRetry(Attempts = 3)]
+    public async Task ReindexAuthorsAsync()
+    {
+        _logger.LogInformation("Starting scheduled author reindexing...");
+        
+        try
+        {
+            await _searchService.BulkIndexAuthorsAsync();
+            _logger.LogInformation("Scheduled author reindexing completed successfully");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during scheduled author reindexing");
+            throw;
+        }
+    }
+
+    public string EnqueueReindexAuthorsJob()
+    {
+        var jobId = BackgroundJob.Enqueue(() => ReindexAuthorsAsync());
+        _logger.LogInformation("Reindex authors job enqueued with ID: {JobId}", jobId);
+        return jobId;
+    }
+
+    public string EnqueueRecreateAuthorsIndexJob()
+    {
+        var jobId = BackgroundJob.Enqueue<ISearchService>(x => x.RecreateAuthorIndexAsync());
+        _logger.LogInformation("Recreate author index job enqueued with ID: {JobId}", jobId);
         return jobId;
     }
 }
