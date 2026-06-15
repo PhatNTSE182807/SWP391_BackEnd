@@ -47,6 +47,9 @@ public static class ApplicationDependencyInjection
 
     private static void RegisterMapper(this IServiceCollection services)
     {
+        var config = TypeAdapterConfig.GlobalSettings;
+        config.Scan(typeof(IMappingProfilesMarker).Assembly);
+
         services.AddMapster();
     }
 
