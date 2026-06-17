@@ -22,6 +22,16 @@ public partial class User
     /// </summary>
     public bool IsActive { get; set; } = true;
 
+    /// <summary>
+    /// Soft delete: true = đã bị xóa, false = bình thường
+    /// </summary>
+    public bool IsDeleted { get; set; } = false;
+
+    /// <summary>
+    /// Thời điểm tài khoản bị xóa (null nếu chưa xóa)
+    /// </summary>
+    public DateTimeOffset? DeletedAt { get; set; }
+
     public virtual Role Role { get; set; }
 
     public virtual ICollection<UserBookmark> UserBookmarks { get; set; } = new List<UserBookmark>();

@@ -21,4 +21,5 @@ public interface ICoreUserRepository : IBaseRepository<User>
 
     Task<List<User>> GetAllUsersWithRoleAsync();
     Task<User> GetUserByIdAsync(Guid userId);
+    Task<User> GetDeletedUserByEmailAsync(string email);
 }

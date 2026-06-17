@@ -39,27 +39,34 @@ public class CoreUserRepository : BaseRepository<User>, ICoreUserRepository
     }
 
     public async Task<bool> IsUsernameExistsAsync(string username)
-        => await DbSet.AnyAsync(u => u.Username == username);
+        => await DbSet.AnyAsync(u => u.Username == username && !u.IsDeleted);
 
     public async Task<bool> IsEmailExistsAsync(string email)
-        => await DbSet.AnyAsync(u => u.Email == email);
+        => await DbSet.AnyAsync(u => u.Email == email && !u.IsDeleted);
 
     public async Task<bool> IsPhoneExistsAsync(string phoneNumber)
-        => await DbSet.AnyAsync(u => u.Phonenumber == phoneNumber);
+        => await DbSet.AnyAsync(u => u.Phonenumber == phoneNumber && !u.IsDeleted);
 
     public async Task<bool> IsUsernameExistsExceptAsync(string username, Guid excludeUserId)
-        => await DbSet.AnyAsync(u => u.Username == username && u.UserId != excludeUserId);
+        => await DbSet.AnyAsync(u => u.Username == username && u.UserId != excludeUserId && !u.IsDeleted);
 
     public async Task<bool> IsEmailExistsExceptAsync(string email, Guid excludeUserId)
-        => await DbSet.AnyAsync(u => u.Email == email && u.UserId != excludeUserId);
+        => await DbSet.AnyAsync(u => u.Email == email && u.UserId != excludeUserId && !u.IsDeleted);
 
     public async Task<bool> IsPhoneExistsExceptAsync(string phoneNumber, Guid excludeUserId)
-        => await DbSet.AnyAsync(u => u.Phonenumber == phoneNumber && u.UserId != excludeUserId);
+        => await DbSet.AnyAsync(u => u.Phonenumber == phoneNumber && u.UserId != excludeUserId && !u.IsDeleted);
+
+    /// <summary>
+    /// Tìm user đã bị soft-delete theo email (dùng cho logic restore khi đăng ký lại)
+    /// </summary>
+    public async Task<User> GetDeletedUserByEmailAsync(string email)
+        => await DbSet.FirstOrDefaultAsync(u => u.Email == email && u.IsDeleted);
 
     public async Task<List<User>> GetAllUsersWithRoleAsync()
     {
         return await DbSet
             .Include(u => u.Role)
+            .Where(u => !u.IsDeleted)
             .OrderBy(u => u.Username)
             .ToListAsync();
     }
