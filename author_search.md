@@ -899,6 +899,120 @@ async function searchWithCache(keyword, page) {
 
 ---
 
+## 🔍 7. Search Authors
+
+### **Endpoint**
+```
+GET /api/search/authors
+```
+
+### **Description**
+Full-text search tác giả bằng Elasticsearch, hỗ trợ highlighting, pagination và các bộ lọc số lượng bài báo, số lượt trích dẫn, chỉ số H-Index.
+
+### **Authorization**
+✅ Required (User hoặc Admin)
+
+### **Query Parameters**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `q` | string | ❌ | - | Từ khóa tìm kiếm (search trong displayName, fullName, affiliations, lastKnownInstitutions) |
+| `page` | integer | ❌ | 1 | Số trang (pagination) |
+| `size` | integer | ❌ | 10 | Số kết quả mỗi trang (max: 100) |
+| `minWorksCount` | integer | ❌ | - | Số lượng bài viết tối thiểu của tác giả |
+| `maxWorksCount` | integer | ❌ | - | Số lượng bài viết tối đa của tác giả |
+| `minCitedByCount` | integer | ❌ | - | Số lượt trích dẫn tối thiểu của tác giả |
+| `maxCitedByCount` | integer | ❌ | - | Số lượt trích dẫn tối đa của tác giả |
+| `minHIndex` | integer | ❌ | - | Chỉ số H-Index tối thiểu |
+| `maxHIndex` | integer | ❌ | - | Chỉ số H-Index tối đa |
+
+### **Request Examples**
+
+#### **JavaScript (Fetch)**
+```javascript
+async function searchAuthors(keyword, filters = {}) {
+  const token = localStorage.getItem('jwt_token');
+  const params = new URLSearchParams({
+    q: keyword,
+    page: filters.page || 1,
+    size: filters.size || 10,
+    ...(filters.minWorksCount && { minWorksCount: filters.minWorksCount }),
+    ...(filters.maxWorksCount && { maxWorksCount: filters.maxWorksCount }),
+    ...(filters.minCitedByCount && { minCitedByCount: filters.minCitedByCount }),
+    ...(filters.maxCitedByCount && { maxCitedByCount: filters.maxCitedByCount }),
+    ...(filters.minHIndex && { minHIndex: filters.minHIndex }),
+    ...(filters.maxHIndex && { maxHIndex: filters.maxHIndex })
+  });
+
+  const response = await fetch(
+    `http://localhost:5000/api/search/authors?${params}`,
+    {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    }
+  );
+  
+  return await response.json();
+}
+```
+
+### **Response Format**
+
+#### **Success Response (200)**
+```json
+{
+  "success": true,
+  "data": {
+    "total": 12,
+    "page": 1,
+    "size": 10,
+    "results": [
+      {
+        "authorId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+        "displayName": "John Doe",
+        "fullName": "John Jonathan Doe",
+        "orcid": "https://orcid.org/0000-0002-1825-0097",
+        "worksCount": 45,
+        "citedByCount": 350,
+        "hIndex": 12,
+        "affiliations": "Department of Computer Science, Stanford University",
+        "lastKnownInstitutions": "Stanford University",
+        "highlight": {
+          "displayName": ["<em>John</em> Doe"],
+          "fullName": ["<em>John</em> Jonathan Doe"],
+          "affiliations": []
+        }
+      }
+    ]
+  },
+  "errors": null
+}
+```
+
+### **Response Fields**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | Trạng thái thành công |
+| `data` | object | Dữ liệu kết quả tìm kiếm |
+| `data.total` | integer | Tổng số tác giả tìm được |
+| `data.page` | integer | Trang hiện tại |
+| `data.size` | integer | Số phần tử mỗi trang |
+| `data.results` | array | Mảng danh sách tác giả khớp |
+| `results[].authorId` | guid | ID tác giả |
+| `results[].displayName` | string | Tên hiển thị |
+| `results[].fullName` | string | Tên đầy đủ |
+| `results[].orcid` | string | ORCID link/id |
+| `results[].worksCount` | integer | Tổng số công trình/bài báo đã xuất bản |
+| `results[].citedByCount` | integer | Tổng số lượt trích dẫn |
+| `results[].hIndex` | integer | Chỉ số H-Index |
+| `results[].affiliations` | string | Đơn vị công tác (Affiliation) |
+| `results[].lastKnownInstitutions` | string | Tổ chức công tác gần nhất |
+| `results[].highlight` | object | Các trường khớp được highlight (displayName, fullName, affiliations) |
+
+---
+
 ## 📞 8. Support & Contact
 
 - **Backend Team**: [Slack Channel]

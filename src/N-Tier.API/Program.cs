@@ -1,4 +1,4 @@
-﻿using Elastic.Clients.Elasticsearch;
+using Elastic.Clients.Elasticsearch;
 using FluentValidation;
 using FluentValidation.AspNetCore;
 using Hangfire;
@@ -120,6 +120,8 @@ app.UseSwaggerUI(c =>
 { 
     c.SwaggerEndpoint("/swagger/v1/swagger.json", "Scientific Journal Publication Trend Tracking System"); 
     c.DocumentTitle = "Scientific Journal Publication Trend Tracking System";
+    c.EnablePersistAuthorization();
+    c.InjectJavascript("/swagger-custom.js");
 });
 
 app.UseHttpsRedirection();
@@ -149,6 +151,125 @@ app.UseMiddleware<TransactionMiddleware>();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 app.MapControllers();
+
+app.MapGet("/swagger-custom.js", async context =>
+{
+    context.Response.ContentType = "application/javascript";
+    await context.Response.WriteAsync(@"
+        (function () {
+            const checkReady = setInterval(() => {
+                const topbar = document.querySelector('.topbar-wrapper');
+                if (topbar) {
+                    clearInterval(checkReady);
+                    
+                    const btnContainer = document.createElement('div');
+                    btnContainer.style.display = 'flex';
+                    btnContainer.style.gap = '8px';
+                    btnContainer.style.marginLeft = '20px';
+                    btnContainer.style.alignItems = 'center';
+                    
+                    const currentRole = localStorage.getItem('swagger-ui:current-role');
+                    const isAuthorized = localStorage.getItem('authorized');
+                    
+                    if (currentRole && isAuthorized) {
+                        const statusText = document.createElement('span');
+                        statusText.innerHTML = '👤 Role: <b>' + currentRole + '</b>';
+                        statusText.style.color = '#fff';
+                        statusText.style.fontSize = '13px';
+                        statusText.style.marginRight = '10px';
+                        
+                        const logoutBtn = document.createElement('button');
+                        logoutBtn.innerHTML = '❌ Logout';
+                        logoutBtn.style.padding = '5px 12px';
+                        logoutBtn.style.backgroundColor = '#f85a5a';
+                        logoutBtn.style.color = 'white';
+                        logoutBtn.style.border = 'none';
+                        logoutBtn.style.borderRadius = '4px';
+                        logoutBtn.style.cursor = 'pointer';
+                        logoutBtn.style.fontWeight = 'bold';
+                        logoutBtn.style.fontSize = '12px';
+                        
+                        logoutBtn.onclick = function () {
+                            localStorage.removeItem('authorized');
+                            localStorage.removeItem('swagger-ui:current-role');
+                            window.location.reload();
+                        };
+                        
+                        btnContainer.appendChild(statusText);
+                        btnContainer.appendChild(logoutBtn);
+                    } else {
+                        if (!isAuthorized) {
+                            localStorage.removeItem('swagger-ui:current-role');
+                        }
+                        
+                        const roles = [
+                            { name: 'Admin', email: 'admin@cloud.com', password: 'Admin123@', color: '#49cc90' },
+                            { name: 'Researcher', email: 'researcher@cloud.com', password: 'Password123@', color: '#e0a800' },
+                            { name: 'Lecturer', email: 'lecturer@cloud.com', password: 'Password123@', color: '#007bff' },
+                            { name: 'Student', email: 'student@cloud.com', password: 'Password123@', color: '#17a2b8' }
+                        ];
+                        
+                        roles.forEach(role => {
+                            const btn = document.createElement('button');
+                            btn.innerHTML = '🔑 ' + role.name;
+                            btn.style.padding = '5px 12px';
+                            btn.style.backgroundColor = role.color;
+                            btn.style.color = 'white';
+                            btn.style.border = 'none';
+                            btn.style.borderRadius = '4px';
+                            btn.style.cursor = 'pointer';
+                            btn.style.fontWeight = 'bold';
+                            btn.style.fontSize = '12px';
+                            
+                            btn.onclick = async function () {
+                                btn.innerHTML = 'Logging in...';
+                                try {
+                                    const response = await fetch('/api/auth/login', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ email: role.email, password: role.password })
+                                    });
+                                    const result = await response.json();
+                                    const succeeded = result.succeeded !== undefined ? result.succeeded : result.Succeeded;
+                                    const resData = result.result !== undefined ? result.result : result.Result;
+                                    const errors = result.errors !== undefined ? result.errors : result.Errors;
+                                    
+                                    if (succeeded && resData && resData.token) {
+                                        const token = resData.token;
+                                        const authObj = {
+                                            'Bearer': {
+                                                'name': 'Authorization',
+                                                'schema': 'Bearer',
+                                                'value': 'Bearer ' + token
+                                            }
+                                        };
+                                        localStorage.setItem('authorized', JSON.stringify(authObj));
+                                        localStorage.setItem('swagger-ui:current-role', role.name);
+                                        btn.innerHTML = '✅ OK!';
+                                        btn.style.backgroundColor = '#28a745';
+                                        setTimeout(() => {
+                                            window.location.reload();
+                                        }, 500);
+                                    } else {
+                                        alert('Login failed for ' + role.name + ': ' + JSON.stringify(errors || []));
+                                        btn.innerHTML = '🔑 ' + role.name;
+                                    }
+                                } catch (err) {
+                                    alert('Login error: ' + err.message);
+                                    btn.innerHTML = '🔑 ' + role.name;
+                                }
+                            };
+                            
+                            btnContainer.appendChild(btn);
+                        });
+                    }
+                    
+                    topbar.appendChild(btnContainer);
+                }
+            }, 100);
+        })();
+    ");
+});
 
 // Schedule Hangfire recurring jobs after app is fully configured
 try

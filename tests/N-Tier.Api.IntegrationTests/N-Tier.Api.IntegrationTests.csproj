@@ -8,8 +8,10 @@
 
     <ItemGroup>
         <PackageReference Include="FluentAssertions" Version="8.2.0" />
+        <PackageReference Include="MailKit" Version="4.17.0" />
         <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="9.0.4" />
-        <PackageReference Include="NBuilder" Version="6.1.0"/>
+        <PackageReference Include="MimeKit" Version="4.17.0" />
+        <PackageReference Include="NBuilder" Version="6.1.0" />
         <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.13.0" />
         <PackageReference Include="xunit" Version="2.9.3" />
         <PackageReference Include="xunit.runner.visualstudio" Version="3.0.2">
@@ -23,7 +25,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\src\N-Tier.API\N-Tier.API.csproj"/>
+        <ProjectReference Include="..\..\src\N-Tier.API\N-Tier.API.csproj" />
     </ItemGroup>
 
 </Project>

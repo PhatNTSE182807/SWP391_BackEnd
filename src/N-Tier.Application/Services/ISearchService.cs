@@ -10,4 +10,11 @@ public interface ISearchService
     Task BulkIndexPapersAsync();
     Task DeleteIndexAsync();
     Task RecreateIndexAsync();
+
+    // Author methods
+    Task<SearchAuthorResponse> SearchAuthorsAsync(SearchAuthorRequest request);
+    Task IndexAuthorAsync(Core.Entities.Author author);
+    Task BulkIndexAuthorsAsync();
+    Task DeleteAuthorIndexAsync();
+    Task RecreateAuthorIndexAsync();
 }

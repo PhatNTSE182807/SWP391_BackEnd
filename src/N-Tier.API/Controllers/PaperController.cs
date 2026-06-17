@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using N_Tier.Application.Models;
@@ -19,10 +19,10 @@ namespace N_Tier.API.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetAllAsync()
+        public async Task<IActionResult> GetAllAsync([FromQuery] PagedRequest request)
         {
-            var result = await _paperService.GetAllPapersAsync();
-            return Ok(ApiResult<List<PaperResponseModel>>.Success(result));
+            var result = await _paperService.GetPaginatedPapersAsync(request);
+            return Ok(ApiResult<PagedResponse<PaperResponseModel>>.Success(result));
         }
 
         [HttpGet("{id:guid}")]

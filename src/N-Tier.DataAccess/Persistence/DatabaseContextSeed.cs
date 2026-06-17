@@ -1,5 +1,4 @@
-﻿using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.SignalR;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using N_Tier.Core.Entities;
 using N_Tier.Shared.Helpers;
@@ -10,26 +9,18 @@ public static class DatabaseContextSeed
 {
     public static async Task SeedDatabaseAsync(DatabaseContext context)
     {
-        if (!await IsTableExistsAsync(context, "core", "roles"))
-            return;
-
-        // Seed roles nếu chưa có
-        await SeedRolesAsync(context);
-
-        if (!await IsTableExistsAsync(context, "core", "users"))
-            return;
-
-        // Seed admin users
-        await SeedAdminUsersAsync(context);
-    }
-
-    private static async Task SeedRolesAsync(DatabaseContext context)
-    {
-        var roles = new[] { "System Administrator", "Researcher", "Lecturer", "Student" };
-
-        foreach (var roleName in roles)
+        if (!await IsTableExistsAsync(context, "core", "users") ||
+            !await IsTableExistsAsync(context, "core", "roles"))
         {
-            if (!await context.CoreRoles.AnyAsync(r => r.RoleName == roleName))
+            return;
+        }
+
+        // Ensure roles exist
+        var rolesToSeed = new[] { "System Administrator", "Researcher", "Lecturer", "Student" };
+        foreach (var roleName in rolesToSeed)
+        {
+            var existingRole = await context.CoreRoles.FirstOrDefaultAsync(r => r.RoleName == roleName);
+            if (existingRole == null)
             {
                 await context.CoreRoles.AddAsync(new Role
                 {
@@ -38,44 +29,43 @@ public static class DatabaseContextSeed
                 });
             }
         }
-
         await context.SaveChangesAsync();
-    }
 
-    private static async Task SeedAdminUsersAsync(DatabaseContext context)
-    {
-        var role = await context.CoreRoles
-            .FirstOrDefaultAsync(r => r.RoleName == "System Administrator");
-
-        if (role == null)
-            return;
-
-        
-        if (!await context.CoreUsers.AnyAsync(u => u.Username == "system_admin" || u.Email == "admin@journal.com"))
+        // Local helper method to seed a user
+        async Task SeedUserAsync(string username, string email, string password, string roleName, string phone)
         {
-            await context.CoreUsers.AddAsync(new User
+            var role = await context.CoreRoles.FirstOrDefaultAsync(r => r.RoleName == roleName);
+            if (role == null) return;
+
+            var user = await context.CoreUsers.FirstOrDefaultAsync(u => u.Username == username);
+            if (user == null)
             {
-                UserId = Guid.NewGuid(),
-                Username = "system_admin",
-                Email = "admin@journal.com",
-                Password = PasswordHasher.HashPassword("Admin123!?"),
-                RoleId = role.RoleId,
-                Phonenumber = "0987654321"
-            });
+                var newUser = new User
+                {
+                    UserId = Guid.NewGuid(),
+                    Username = username,
+                    Email = email,
+                    Password = PasswordHasher.HashPassword(password),
+                    RoleId = role.RoleId,
+                    Phonenumber = phone,
+                    IsActive = true
+                };
+                await context.CoreUsers.AddAsync(newUser);
+            }
+            else
+            {
+                user.Email = email;
+                user.Password = PasswordHasher.HashPassword(password);
+                user.RoleId = role.RoleId;
+                context.CoreUsers.Update(user);
+            }
         }
 
-        if (!await context.CoreUsers.AnyAsync(u => u.Username == "admin2" || u.Email == "admin@gmail.com"))
-        {
-            await context.CoreUsers.AddAsync(new User
-            {
-                UserId = Guid.NewGuid(),
-                Username = "admin2",
-                Email = "admin@gmail.com",
-                Password = PasswordHasher.HashPassword("Admin123!?"),
-                RoleId = role.RoleId,
-                Phonenumber = "0987654322"
-            });
-        }
+        // Seed users
+        await SeedUserAsync("system_admin", "admin@cloud.com", "Admin123@", "System Administrator", "0987654321");
+        await SeedUserAsync("researcher_user", "researcher@cloud.com", "Password123@", "Researcher", "0987654322");
+        await SeedUserAsync("lecturer_user", "lecturer@cloud.com", "Password123@", "Lecturer", "0987654323");
+        await SeedUserAsync("student_user", "student@cloud.com", "Password123@", "Student", "0987654324");
 
         await context.SaveChangesAsync();
     }

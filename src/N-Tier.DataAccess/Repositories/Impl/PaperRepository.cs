@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using N_Tier.Core.Entities;
 using N_Tier.DataAccess.Persistence;
 
@@ -33,5 +33,21 @@ public class PaperRepository : BaseRepository<Paper>, IPaperRepository
                 .Where(pa => pa.PaperAuthors.Any(pa => pa.AuthorId == authorId))
                 .ToListAsync();     
         return paper;
+    }
+
+    public async Task<(IEnumerable<Paper> Results, int TotalCount)> GetPaginatedAsync(int page, int size)
+    {
+        var total = await Context.Papers.CountAsync();
+        var results = await Context.Papers
+            .AsNoTracking()
+            .Include(p => p.Journal)
+            .Include(p => p.PaperAuthors)
+                .ThenInclude(pa => pa.Author)
+            .OrderBy(p => p.Title)
+            .Skip((page - 1) * size)
+            .Take(size)
+            .ToListAsync();
+
+        return (results, total);
     }
 }
