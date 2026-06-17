@@ -1,4 +1,4 @@
-﻿using Mapster;
+using Mapster;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -35,6 +35,7 @@ public static class ApplicationDependencyInjection
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<ISearchService, SearchService>();
         services.AddScoped<IHangfireJobService, HangfireJobService>();
+        services.AddScoped<IAnalyticsService, AnalyticsService>();
 
         if (env.IsDevelopment())
             services.AddScoped<IEmailService, DevEmailService>();

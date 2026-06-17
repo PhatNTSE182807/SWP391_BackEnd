@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -163,10 +163,27 @@ public class SearchService : ISearchService
 
     public async Task IndexPaperAsync(Core.Entities.Paper paper)
     {
-        var document = MapToDocument(paper);
+        var paperWithIncludes = await _context.Papers
+            .Include(p => p.Journal)
+            .Include(p => p.PaperAuthors).ThenInclude(pa => pa.Author)
+            .Include(p => p.PaperKeywords).ThenInclude(pk => pk.Keyword)
+            .Include(p => p.PaperTopics).ThenInclude(pt => pt.Topic)
+                .ThenInclude(t => t.Subfield)
+                    .ThenInclude(sf => sf.Field)
+                        .ThenInclude(f => f.Domain)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.PaperId == paper.PaperId);
+
+        if (paperWithIncludes == null)
+        {
+            _logger.LogWarning("Attempted to index paper {PaperId} but it was not found in database", paper.PaperId);
+            return;
+        }
+
+        var document = MapToDocument(paperWithIncludes);
         var response = await _elasticClient.IndexAsync(document, idx => idx
             .Index(IndexName)
-            .Id(paper.PaperId.ToString()));
+            .Id(paperWithIncludes.PaperId.ToString()));
 
         if (!response.IsValidResponse)
         {
@@ -199,6 +216,13 @@ public class SearchService : ISearchService
         while (true)
         {
             var papers = await _context.Papers
+                .Include(p => p.Journal)
+                .Include(p => p.PaperAuthors).ThenInclude(pa => pa.Author)
+                .Include(p => p.PaperKeywords).ThenInclude(pk => pk.Keyword)
+                .Include(p => p.PaperTopics).ThenInclude(pt => pt.Topic)
+                    .ThenInclude(t => t.Subfield)
+                        .ThenInclude(sf => sf.Field)
+                            .ThenInclude(f => f.Domain)
                 .AsNoTracking()
                 .OrderBy(p => p.PaperId)
                 .Skip(skip)
@@ -284,6 +308,39 @@ public class SearchService : ISearchService
                     .IntegerNumber(i => i.CitedByCount)
                     .Keyword(k => k.Language)
                     .Boolean(b => b.IsOpenAccess)
+                    .Nested("journal", n => n
+                        .Properties(jp => jp
+                            .Keyword("journalId")
+                            .Keyword("journalName")
+                            .Boolean("isOpenAccess")
+                        )
+                    )
+                    .Nested("authors", n => n
+                        .Properties(ap => ap
+                            .Keyword("authorId")
+                            .Keyword("displayName")
+                            .IntegerNumber("citedByCount")
+                            .IntegerNumber("hIndex")
+                        )
+                    )
+                    .Nested("keywords", n => n
+                        .Properties(kp => kp
+                            .Keyword("keywordId")
+                            .Keyword("keywordName")
+                        )
+                    )
+                    .Nested("topics", n => n
+                        .Properties(tp => tp
+                            .Keyword("topicId")
+                            .Keyword("topicName")
+                            .Keyword("subfieldId")
+                            .Keyword("subfieldName")
+                            .Keyword("fieldId")
+                            .Keyword("fieldName")
+                            .Keyword("domainId")
+                            .Keyword("domainName")
+                        )
+                    )
                 )
             )
         );
@@ -300,7 +357,7 @@ public class SearchService : ISearchService
 
     private PaperDocument MapToDocument(Core.Entities.Paper paper)
     {
-        return new PaperDocument
+        var doc = new PaperDocument
         {
             PaperId = paper.PaperId,
             Title = paper.Title,
@@ -310,6 +367,59 @@ public class SearchService : ISearchService
             Language = paper.Language,
             IsOpenAccess = paper.IsOpenAccess
         };
+
+        if (paper.Journal != null)
+        {
+            doc.Journal = new JournalDocument
+            {
+                JournalId = paper.Journal.JournalId,
+                JournalName = paper.Journal.JournalName,
+                IsOpenAccess = paper.Journal.IsOpenAccess
+            };
+        }
+
+        if (paper.PaperAuthors != null && paper.PaperAuthors.Any())
+        {
+            doc.Authors = paper.PaperAuthors
+                .Where(pa => pa.Author != null)
+                .Select(pa => new AuthorDocument
+                {
+                    AuthorId = pa.Author.AuthorId,
+                    DisplayName = pa.Author.DisplayName,
+                    CitedByCount = pa.Author.CitedByCount,
+                    HIndex = pa.Author.HIndex
+                }).ToList();
+        }
+
+        if (paper.PaperKeywords != null && paper.PaperKeywords.Any())
+        {
+            doc.Keywords = paper.PaperKeywords
+                .Where(pk => pk.Keyword != null)
+                .Select(pk => new KeywordDocument
+                {
+                    KeywordId = pk.Keyword.KeywordId,
+                    KeywordName = pk.Keyword.KeywordName
+                }).ToList();
+        }
+
+        if (paper.PaperTopics != null && paper.PaperTopics.Any())
+        {
+            doc.Topics = paper.PaperTopics
+                .Where(pt => pt.Topic != null)
+                .Select(pt => new TopicDocument
+                {
+                    TopicId = pt.Topic.TopicId,
+                    TopicName = pt.Topic.TopicName,
+                    SubfieldId = pt.Topic.Subfield?.SubfieldId,
+                    SubfieldName = pt.Topic.Subfield?.SubfieldName,
+                    FieldId = pt.Topic.Subfield?.Field?.FieldId,
+                    FieldName = pt.Topic.Subfield?.Field?.FieldName,
+                    DomainId = pt.Topic.Subfield?.Field?.Domain?.DomainId,
+                    DomainName = pt.Topic.Subfield?.Field?.Domain?.DomainName
+                }).ToList();
+        }
+
+        return doc;
     }
 
     private string GenerateCacheKey(SearchPaperRequest request)
@@ -327,4 +437,41 @@ public class PaperDocument
     public int? CitedByCount { get; set; }
     public string Language { get; set; }
     public bool? IsOpenAccess { get; set; }
+    public JournalDocument Journal { get; set; }
+    public List<AuthorDocument> Authors { get; set; } = new();
+    public List<KeywordDocument> Keywords { get; set; } = new();
+    public List<TopicDocument> Topics { get; set; } = new();
+}
+
+public class JournalDocument
+{
+    public Guid? JournalId { get; set; }
+    public string JournalName { get; set; }
+    public bool? IsOpenAccess { get; set; }
+}
+
+public class AuthorDocument
+{
+    public Guid AuthorId { get; set; }
+    public string DisplayName { get; set; }
+    public int? CitedByCount { get; set; }
+    public int? HIndex { get; set; }
+}
+
+public class KeywordDocument
+{
+    public Guid KeywordId { get; set; }
+    public string KeywordName { get; set; }
+}
+
+public class TopicDocument
+{
+    public Guid TopicId { get; set; }
+    public string TopicName { get; set; }
+    public Guid? SubfieldId { get; set; }
+    public string SubfieldName { get; set; }
+    public Guid? FieldId { get; set; }
+    public string FieldName { get; set; }
+    public Guid? DomainId { get; set; }
+    public string DomainName { get; set; }
 }
