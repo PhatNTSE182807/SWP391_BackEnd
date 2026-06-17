@@ -236,13 +236,16 @@ app.MapGet("/swagger-custom.js", async context =>
                                     
                                     if (succeeded && resData && resData.token) {
                                         const token = resData.token;
-                                        const authObj = {
-                                            'Bearer': {
-                                                'name': 'Authorization',
-                                                'schema': 'Bearer',
-                                                'value': 'Bearer ' + token
-                                            }
-                                        };
+                                         const authObj = {
+                                             'Bearer': {
+                                                 'schema': {
+                                                     'type': 'apiKey',
+                                                     'name': 'Authorization',
+                                                     'in': 'header'
+                                                 },
+                                                 'value': 'Bearer ' + token
+                                             }
+                                         };
                                         localStorage.setItem('authorized', JSON.stringify(authObj));
                                         localStorage.setItem('swagger-ui:current-role', role.name);
                                         btn.innerHTML = '✅ OK!';
