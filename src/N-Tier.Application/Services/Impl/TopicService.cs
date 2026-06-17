@@ -24,8 +24,9 @@ namespace N_Tier.Application.Services.Impl
 
         public async Task<TopicResponseModel> GetTopicByIdAsync(Guid id)
         {
-            var topic = await _researchTopicRepository.GetFirstAsync(t => t.TopicId == id);
-            return topic.Adapt<TopicResponseModel>();
+            var topics = await _researchTopicRepository.GetAllAsync(t => t.TopicId == id);
+            var topic = topics.FirstOrDefault();
+            return topic?.Adapt<TopicResponseModel>();
         }
     }
 }
