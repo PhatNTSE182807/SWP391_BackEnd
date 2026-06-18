@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Elastic.Clients.Elasticsearch;
+using Elastic.Clients.Elasticsearch.IndexManagement;
 using Elastic.Clients.Elasticsearch.QueryDsl;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
@@ -164,6 +165,8 @@ public class SearchService : ISearchService
 
     public async Task IndexPaperAsync(Core.Entities.Paper paper)
     {
+        await EnsureAliasExistsAsync(IndexName, false);
+
         var paperWithIncludes = await _context.Papers
             .Include(p => p.Journal)
             .Include(p => p.PaperAuthors).ThenInclude(pa => pa.Author)
@@ -200,15 +203,27 @@ public class SearchService : ISearchService
     {
         _logger.LogInformation("Starting bulk indexing of papers...");
 
-        // Always recreate the index before bulk indexing so old duplicate docs are not kept
-        var indexExists = await _elasticClient.Indices.ExistsAsync(IndexName);
-        if (indexExists.Exists)
+        var aliasName = IndexName;
+        var newIndexName = $"{aliasName}-{DateTime.UtcNow:yyyyMMdd-HHmmss}";
+
+        var existsNew = await _elasticClient.Indices.ExistsAsync(newIndexName);
+        if (existsNew.Exists)
         {
-            _logger.LogInformation("Deleting existing index {IndexName} before reindexing to avoid duplicate documents", IndexName);
-            await DeleteIndexAsync();
+            await _elasticClient.Indices.DeleteAsync(newIndexName);
         }
 
-        await CreateIndexAsync();
+        var existsConcrete = await _elasticClient.Indices.ExistsAsync(aliasName);
+        if (existsConcrete.Exists)
+        {
+            var aliasResponse = await _elasticClient.Indices.GetAliasAsync(g => g.Name(aliasName));
+            if (!aliasResponse.IsValidResponse || aliasResponse.Aliases.Count == 0)
+            {
+                _logger.LogWarning("Concrete index {IndexName} exists instead of alias. Deleting it to make room for alias...", aliasName);
+                await _elasticClient.Indices.DeleteAsync(aliasName);
+            }
+        }
+
+        await CreateIndexAsync(newIndexName);
 
         var batchSize = 1000;
         var skip = 0;
@@ -236,7 +251,7 @@ public class SearchService : ISearchService
             var documents = papers.Select(MapToDocument).ToList();
 
             var bulkResponse = await _elasticClient.BulkAsync(b => b
-                .Index(IndexName)
+                .Index(newIndexName)
                 .Refresh(Refresh.WaitFor)
                 .IndexMany(documents, (descriptor, doc) =>
                     descriptor.Id(doc.PaperId.ToString()))
@@ -258,48 +273,90 @@ public class SearchService : ISearchService
             _logger.LogInformation("Indexed {Count} papers. Total: {Total}", papers.Count, totalIndexed);
         }
 
+        var oldIndices = new List<string>();
+        var getAliasResponse = await _elasticClient.Indices.GetAliasAsync(g => g.Name(aliasName));
+        if (getAliasResponse.IsValidResponse)
+        {
+            oldIndices = getAliasResponse.Aliases.Keys.Select(k => k.ToString()).ToList();
+        }
+
+        var actions = new List<IndexUpdateAliasesAction>();
+        actions.Add(IndexUpdateAliasesAction.Add(new AddAction
+        {
+            Alias = aliasName,
+            Index = newIndexName
+        }));
+
+        foreach (var oldIndex in oldIndices)
+        {
+            actions.Add(IndexUpdateAliasesAction.Remove(new RemoveAction
+            {
+                Alias = aliasName,
+                Index = oldIndex
+            }));
+        }
+
+        var updateAliasResponse = await _elasticClient.Indices.UpdateAliasesAsync(new UpdateAliasesRequest
+        {
+            Actions = actions
+        });
+
+        if (!updateAliasResponse.IsValidResponse)
+        {
+            var error = updateAliasResponse.ElasticsearchServerError?.Error?.Reason ?? "Unknown error";
+            _logger.LogError("Failed to update alias {AliasName} to new index {NewIndex}: {Error}", aliasName, newIndexName, error);
+            throw new Exception($"Failed to update alias: {error}");
+        }
+
+        _logger.LogInformation("Successfully switched alias {AliasName} to point to index {NewIndexName}", aliasName, newIndexName);
+
+        foreach (var oldIndex in oldIndices)
+        {
+            _logger.LogInformation("Deleting old index {OldIndex}...", oldIndex);
+            var deleteResponse = await _elasticClient.Indices.DeleteAsync(oldIndex);
+            if (!deleteResponse.IsValidResponse)
+            {
+                _logger.LogWarning("Failed to delete old index {OldIndex}: {Error}", oldIndex, deleteResponse.ElasticsearchServerError?.Error?.Reason);
+            }
+            else
+            {
+                _logger.LogInformation("Deleted old index {OldIndex} successfully", oldIndex);
+            }
+        }
+
         _logger.LogInformation("Bulk indexing completed. Total papers indexed: {Total}", totalIndexed);
     }
 
     public async Task DeleteIndexAsync()
     {
-        _logger.LogInformation("Deleting index {IndexName}...", IndexName);
+        _logger.LogInformation("Deleting alias and indices for {AliasName}...", IndexName);
         
-        var response = await _elasticClient.Indices.DeleteAsync(IndexName);
-        
-        if (!response.IsValidResponse)
+        var getAliasResponse = await _elasticClient.Indices.GetAliasAsync(g => g.Name(IndexName));
+        if (getAliasResponse.IsValidResponse)
         {
-            _logger.LogError("Failed to delete index {IndexName}: {Error}",
-                IndexName, response.ElasticsearchServerError?.Error?.Reason);
-            throw new Exception($"Failed to delete index: {response.ElasticsearchServerError?.Error?.Reason}");
+            foreach (var indexName in getAliasResponse.Aliases.Keys)
+            {
+                await _elasticClient.Indices.DeleteAsync(indexName);
+            }
         }
         
-        _logger.LogInformation("Index {IndexName} deleted successfully", IndexName);
+        var existsConcrete = await _elasticClient.Indices.ExistsAsync(IndexName);
+        if (existsConcrete.Exists)
+        {
+            await _elasticClient.Indices.DeleteAsync(IndexName);
+        }
     }
 
     public async Task RecreateIndexAsync()
     {
-        _logger.LogInformation("Recreating index {IndexName} with correct mapping...", IndexName);
-        
-        // Delete index if exists
-        var indexExists = await _elasticClient.Indices.ExistsAsync(IndexName);
-        if (indexExists.Exists)
-        {
-            await DeleteIndexAsync();
-        }
-        
-        // Create new index with correct mapping
-        await CreateIndexAsync();
-        
-        // Reindex all papers
+        _logger.LogInformation("Recreating index {IndexName} with correct mapping and zero downtime...", IndexName);
         await BulkIndexPapersAsync();
-        
         _logger.LogInformation("Index {IndexName} recreated successfully", IndexName);
     }
 
-    private async Task CreateIndexAsync()
+    private async Task CreateIndexAsync(string indexName)
     {
-        var response = await _elasticClient.Indices.CreateAsync(IndexName, c => c
+        var response = await _elasticClient.Indices.CreateAsync(indexName, c => c
             .Mappings(m => m
                 .Properties<PaperDocument>(p => p
                     .Keyword(k => k.PaperId)
@@ -348,12 +405,12 @@ public class SearchService : ISearchService
 
         if (!response.IsValidResponse)
         {
-            _logger.LogError("Failed to create index: {Error}",
-                response.ElasticsearchServerError?.Error?.Reason);
-            throw new Exception($"Failed to create index: {response.ElasticsearchServerError?.Error?.Reason}");
+            _logger.LogError("Failed to create index {IndexName}: {Error}",
+                indexName, response.ElasticsearchServerError?.Error?.Reason);
+            throw new Exception($"Failed to create index {indexName}: {response.ElasticsearchServerError?.Error?.Reason}");
         }
 
-        _logger.LogInformation("Index {IndexName} created successfully", IndexName);
+        _logger.LogInformation("Index {IndexName} created successfully", indexName);
     }
 
     private PaperDocument MapToDocument(Core.Entities.Paper paper)
@@ -571,6 +628,8 @@ public class SearchService : ISearchService
 
     public async Task IndexAuthorAsync(Core.Entities.Author author)
     {
+        await EnsureAliasExistsAsync(AuthorIndexName, true);
+
         var document = MapToAuthorDocument(author);
         var response = await _elasticClient.IndexAsync(document, idx => idx.Index(AuthorIndexName));
 
@@ -588,12 +647,27 @@ public class SearchService : ISearchService
     {
         _logger.LogInformation("Starting bulk indexing of authors...");
 
-        // Create index if not exists
-        var indexExists = await _elasticClient.Indices.ExistsAsync(AuthorIndexName);
-        if (!indexExists.Exists)
+        var aliasName = AuthorIndexName;
+        var newIndexName = $"{aliasName}-{DateTime.UtcNow:yyyyMMdd-HHmmss}";
+
+        var existsNew = await _elasticClient.Indices.ExistsAsync(newIndexName);
+        if (existsNew.Exists)
         {
-            await CreateAuthorIndexAsync();
+            await _elasticClient.Indices.DeleteAsync(newIndexName);
         }
+
+        var existsConcrete = await _elasticClient.Indices.ExistsAsync(aliasName);
+        if (existsConcrete.Exists)
+        {
+            var aliasResponse = await _elasticClient.Indices.GetAliasAsync(g => g.Name(aliasName));
+            if (!aliasResponse.IsValidResponse || aliasResponse.Aliases.Count == 0)
+            {
+                _logger.LogWarning("Concrete index {IndexName} exists instead of alias. Deleting it to make room for alias...", aliasName);
+                await _elasticClient.Indices.DeleteAsync(aliasName);
+            }
+        }
+
+        await CreateAuthorIndexAsync(newIndexName);
 
         var batchSize = 1000;
         var skip = 0;
@@ -614,7 +688,7 @@ public class SearchService : ISearchService
             var documents = authors.Select(MapToAuthorDocument).ToList();
 
             var bulkResponse = await _elasticClient.BulkAsync(b => b
-                .Index(AuthorIndexName)
+                .Index(newIndexName)
                 .IndexMany(documents)
             );
 
@@ -631,48 +705,90 @@ public class SearchService : ISearchService
             _logger.LogInformation("Indexed {Count} authors. Total: {Total}", authors.Count, totalIndexed);
         }
 
+        var oldIndices = new List<string>();
+        var getAliasResponse = await _elasticClient.Indices.GetAliasAsync(g => g.Name(aliasName));
+        if (getAliasResponse.IsValidResponse)
+        {
+            oldIndices = getAliasResponse.Aliases.Keys.Select(k => k.ToString()).ToList();
+        }
+
+        var actions = new List<IndexUpdateAliasesAction>();
+        actions.Add(IndexUpdateAliasesAction.Add(new AddAction
+        {
+            Alias = aliasName,
+            Index = newIndexName
+        }));
+
+        foreach (var oldIndex in oldIndices)
+        {
+            actions.Add(IndexUpdateAliasesAction.Remove(new RemoveAction
+            {
+                Alias = aliasName,
+                Index = oldIndex
+            }));
+        }
+
+        var updateAliasResponse = await _elasticClient.Indices.UpdateAliasesAsync(new UpdateAliasesRequest
+        {
+            Actions = actions
+        });
+
+        if (!updateAliasResponse.IsValidResponse)
+        {
+            var error = updateAliasResponse.ElasticsearchServerError?.Error?.Reason ?? "Unknown error";
+            _logger.LogError("Failed to update alias {AliasName} to new index {NewIndex}: {Error}", aliasName, newIndexName, error);
+            throw new Exception($"Failed to update alias: {error}");
+        }
+
+        _logger.LogInformation("Successfully switched alias {AliasName} to point to index {NewIndexName}", aliasName, newIndexName);
+
+        foreach (var oldIndex in oldIndices)
+        {
+            _logger.LogInformation("Deleting old index {OldIndex}...", oldIndex);
+            var deleteResponse = await _elasticClient.Indices.DeleteAsync(oldIndex);
+            if (!deleteResponse.IsValidResponse)
+            {
+                _logger.LogWarning("Failed to delete old index {OldIndex}: {Error}", oldIndex, deleteResponse.ElasticsearchServerError?.Error?.Reason);
+            }
+            else
+            {
+                _logger.LogInformation("Deleted old index {OldIndex} successfully", oldIndex);
+            }
+        }
+
         _logger.LogInformation("Bulk indexing of authors completed. Total authors indexed: {Total}", totalIndexed);
     }
 
     public async Task DeleteAuthorIndexAsync()
     {
-        _logger.LogInformation("Deleting index {IndexName}...", AuthorIndexName);
+        _logger.LogInformation("Deleting alias and indices for {AliasName}...", AuthorIndexName);
         
-        var response = await _elasticClient.Indices.DeleteAsync(AuthorIndexName);
-        
-        if (!response.IsValidResponse)
+        var getAliasResponse = await _elasticClient.Indices.GetAliasAsync(g => g.Name(AuthorIndexName));
+        if (getAliasResponse.IsValidResponse)
         {
-            _logger.LogError("Failed to delete index {IndexName}: {Error}",
-                AuthorIndexName, response.ElasticsearchServerError?.Error?.Reason);
-            throw new Exception($"Failed to delete index: {response.ElasticsearchServerError?.Error?.Reason}");
+            foreach (var indexName in getAliasResponse.Aliases.Keys)
+            {
+                await _elasticClient.Indices.DeleteAsync(indexName);
+            }
         }
         
-        _logger.LogInformation("Index {IndexName} deleted successfully", AuthorIndexName);
+        var existsConcrete = await _elasticClient.Indices.ExistsAsync(AuthorIndexName);
+        if (existsConcrete.Exists)
+        {
+            await _elasticClient.Indices.DeleteAsync(AuthorIndexName);
+        }
     }
 
     public async Task RecreateAuthorIndexAsync()
     {
-        _logger.LogInformation("Recreating index {IndexName} with correct mapping...", AuthorIndexName);
-        
-        // Delete index if exists
-        var indexExists = await _elasticClient.Indices.ExistsAsync(AuthorIndexName);
-        if (indexExists.Exists)
-        {
-            await DeleteAuthorIndexAsync();
-        }
-        
-        // Create new index with correct mapping
-        await CreateAuthorIndexAsync();
-        
-        // Reindex all authors
+        _logger.LogInformation("Recreating index {IndexName} with correct mapping and zero downtime...", AuthorIndexName);
         await BulkIndexAuthorsAsync();
-        
         _logger.LogInformation("Index {IndexName} recreated successfully", AuthorIndexName);
     }
 
-    private async Task CreateAuthorIndexAsync()
+    private async Task CreateAuthorIndexAsync(string indexName)
     {
-        var response = await _elasticClient.Indices.CreateAsync(AuthorIndexName, c => c
+        var response = await _elasticClient.Indices.CreateAsync(indexName, c => c
             .Mappings(m => m
                 .Properties<AuthorDocument>(p => p
                     .Keyword(k => k.AuthorId)
@@ -690,12 +806,12 @@ public class SearchService : ISearchService
 
         if (!response.IsValidResponse)
         {
-            _logger.LogError("Failed to create author index: {Error}",
-                response.ElasticsearchServerError?.Error?.Reason);
-            throw new Exception($"Failed to create author index: {response.ElasticsearchServerError?.Error?.Reason}");
+            _logger.LogError("Failed to create author index {IndexName}: {Error}",
+                indexName, response.ElasticsearchServerError?.Error?.Reason);
+            throw new Exception($"Failed to create author index {indexName}: {response.ElasticsearchServerError?.Error?.Reason}");
         }
 
-        _logger.LogInformation("Index {IndexName} created successfully", AuthorIndexName);
+        _logger.LogInformation("Index {IndexName} created successfully", indexName);
     }
 
     private AuthorDocument MapToAuthorDocument(Core.Entities.Author author)
@@ -717,6 +833,41 @@ public class SearchService : ISearchService
     private string GenerateAuthorCacheKey(SearchAuthorRequest request)
     {
         return $"search:authors:{request.Q}:{request.Page}:{request.Size}:{request.MinWorksCount}:{request.MaxWorksCount}:{request.MinCitedByCount}:{request.MaxCitedByCount}:{request.MinHIndex}:{request.MaxHIndex}";
+    }
+
+    private async Task EnsureAliasExistsAsync(string aliasName, bool isAuthor)
+    {
+        var existsResponse = await _elasticClient.Indices.ExistsAsync(aliasName);
+        if (!existsResponse.Exists)
+        {
+            _logger.LogInformation("Index/Alias {AliasName} does not exist. Initializing...", aliasName);
+            var initialIndexName = $"{aliasName}-{DateTime.UtcNow:yyyyMMdd-HHmmss}";
+            if (isAuthor)
+            {
+                await CreateAuthorIndexAsync(initialIndexName);
+            }
+            else
+            {
+                await CreateIndexAsync(initialIndexName);
+            }
+
+            var updateAliasResponse = await _elasticClient.Indices.UpdateAliasesAsync(new UpdateAliasesRequest
+            {
+                Actions = new IndexUpdateAliasesAction[]
+                {
+                    IndexUpdateAliasesAction.Add(new AddAction
+                    {
+                        Alias = aliasName,
+                        Index = initialIndexName
+                    })
+                }
+            });
+
+            if (!updateAliasResponse.IsValidResponse)
+            {
+                _logger.LogError("Failed to initialize alias {AliasName}: {Error}", aliasName, updateAliasResponse.ElasticsearchServerError?.Error?.Reason);
+            }
+        }
     }
 }
 
