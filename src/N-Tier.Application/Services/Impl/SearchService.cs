@@ -20,6 +20,7 @@ public class SearchService : ISearchService
     private readonly DatabaseContext _context;
     private readonly ILogger<SearchService> _logger;
     private const string IndexName = "papers";
+    private const string AuthorIndexName = "authors";
 
     public SearchService(
         ElasticsearchClient elasticClient,
@@ -164,7 +165,9 @@ public class SearchService : ISearchService
     public async Task IndexPaperAsync(Core.Entities.Paper paper)
     {
         var document = MapToDocument(paper);
-        var response = await _elasticClient.IndexAsync(document, idx => idx.Index(IndexName));
+        var response = await _elasticClient.IndexAsync(document, idx => idx
+            .Index(IndexName)
+            .Id(paper.PaperId.ToString()));
 
         if (!response.IsValidResponse)
         {
@@ -180,12 +183,15 @@ public class SearchService : ISearchService
     {
         _logger.LogInformation("Starting bulk indexing of papers...");
 
-        // Create index if not exists
+        // Always recreate the index before bulk indexing so old duplicate docs are not kept
         var indexExists = await _elasticClient.Indices.ExistsAsync(IndexName);
-        if (!indexExists.Exists)
+        if (indexExists.Exists)
         {
-            await CreateIndexAsync();
+            _logger.LogInformation("Deleting existing index {IndexName} before reindexing to avoid duplicate documents", IndexName);
+            await DeleteIndexAsync();
         }
+
+        await CreateIndexAsync();
 
         var batchSize = 1000;
         var skip = 0;
@@ -207,14 +213,19 @@ public class SearchService : ISearchService
 
             var bulkResponse = await _elasticClient.BulkAsync(b => b
                 .Index(IndexName)
-                .IndexMany(documents)
+                .Refresh(Refresh.WaitFor)
+                .IndexMany(documents, (descriptor, doc) =>
+                    descriptor.Id(doc.PaperId.ToString()))
             );
 
-            if (!bulkResponse.IsValidResponse)
+            if (!bulkResponse.IsValidResponse || bulkResponse.Errors)
             {
-                _logger.LogError("Bulk indexing failed: {Error}",
-                    bulkResponse.ElasticsearchServerError?.Error?.Reason);
-                throw new Exception($"Bulk indexing failed: {bulkResponse.ElasticsearchServerError?.Error?.Reason}");
+                var errorMessage = bulkResponse.ElasticsearchServerError?.Error?.Reason
+                    ?? bulkResponse.Items?.FirstOrDefault(x => x.Error != null)?.Error?.Reason
+                    ?? "Unknown bulk indexing error";
+
+                _logger.LogError("Bulk indexing failed: {Error}", errorMessage);
+                throw new Exception($"Bulk indexing failed: {errorMessage}");
             }
 
             totalIndexed += papers.Count;
@@ -306,6 +317,297 @@ public class SearchService : ISearchService
     {
         return $"search:papers:{request.Q}:{request.Page}:{request.Size}:{request.From}:{request.To}:{request.Language}:{request.IsOpenAccess}";
     }
+
+    public async Task<SearchAuthorResponse> SearchAuthorsAsync(SearchAuthorRequest request)
+    {
+        var cacheKey = GenerateAuthorCacheKey(request);
+
+        var cachedResult = await _cache.GetStringAsync(cacheKey);
+        if (!string.IsNullOrEmpty(cachedResult))
+        {
+            _logger.LogInformation("Cache hit for author search query: {Query}", request.Q);
+            return JsonConvert.DeserializeObject<SearchAuthorResponse>(cachedResult);
+        }
+
+        var mustQueries = new List<Query>();
+
+        // Full-text search on displayName, fullName, affiliations, lastKnownInstitutions
+        if (!string.IsNullOrWhiteSpace(request.Q))
+        {
+            mustQueries.Add(new MultiMatchQuery
+            {
+                Query = request.Q,
+                Fields = new[] { "displayName^2", "fullName^2", "affiliations", "lastKnownInstitutions" }, 
+                Fuzziness = new Fuzziness("AUTO"),
+                Operator = Operator.Or
+            });
+        }
+
+        // Works count filter
+        if (request.MinWorksCount.HasValue || request.MaxWorksCount.HasValue)
+        {
+            mustQueries.Add(new NumberRangeQuery(new Field("worksCount"))
+            {
+                Gte = request.MinWorksCount,
+                Lte = request.MaxWorksCount
+            });
+        }
+
+        // Cited by count filter
+        if (request.MinCitedByCount.HasValue || request.MaxCitedByCount.HasValue)
+        {
+            mustQueries.Add(new NumberRangeQuery(new Field("citedByCount"))
+            {
+                Gte = request.MinCitedByCount,
+                Lte = request.MaxCitedByCount
+            });
+        }
+
+        // H-Index filter
+        if (request.MinHIndex.HasValue || request.MaxHIndex.HasValue)
+        {
+            mustQueries.Add(new NumberRangeQuery(new Field("hIndex"))
+            {
+                Gte = request.MinHIndex,
+                Lte = request.MaxHIndex
+            });
+        }
+
+        var from = (request.Page - 1) * request.Size;
+
+        var searchResponse = await _elasticClient.SearchAsync<AuthorDocument>(s => s
+            .Index(AuthorIndexName)
+            .From(from)
+            .Size(request.Size)
+            .Query(q => q
+                .Bool(b => b
+                    .Must(mustQueries.ToArray())
+                )
+            )
+            .Highlight(h => h
+                .Fields(f => f
+                    .Add("displayName", hf => hf
+                        .PreTags(new[] { "<em>" })
+                        .PostTags(new[] { "</em>" })
+                    )
+                    .Add("fullName", hf => hf
+                        .PreTags(new[] { "<em>" })
+                        .PostTags(new[] { "</em>" })
+                    )
+                    .Add("affiliations", hf => hf
+                        .PreTags(new[] { "<em>" })
+                        .PostTags(new[] { "</em>" })
+                        .FragmentSize(150)
+                        .NumberOfFragments(3)
+                    )
+                )
+            )
+            .Sort(sort => sort
+                .Score(new ScoreSort { Order = SortOrder.Desc })
+                .Field("citedByCount", new FieldSort { Order = SortOrder.Desc })
+            )
+        );
+
+        if (!searchResponse.IsValidResponse)
+        {
+            _logger.LogError("Elasticsearch author search error: {Error}", searchResponse.ElasticsearchServerError?.Error?.Reason);
+            throw new Exception($"Author search failed: {searchResponse.ElasticsearchServerError?.Error?.Reason}");
+        }
+
+        var response = new SearchAuthorResponse
+        {
+            Total = searchResponse.Total,
+            Page = request.Page,
+            Size = request.Size,
+            Results = searchResponse.Documents.Select((doc, index) =>
+            {
+                var hit = searchResponse.Hits.ElementAt(index);
+                return new SearchAuthorResultItem
+                {
+                    AuthorId = doc.AuthorId,
+                    DisplayName = doc.DisplayName,
+                    FullName = doc.FullName,
+                    Orcid = doc.Orcid,
+                    WorksCount = doc.WorksCount,
+                    CitedByCount = doc.CitedByCount,
+                    HIndex = doc.HIndex,
+                    Affiliations = doc.Affiliations,
+                    LastKnownInstitutions = doc.LastKnownInstitutions,
+                    Highlight = new SearchAuthorHighlight
+                    {
+                        DisplayName = hit.Highlight?.TryGetValue("displayName", out var nameHighlights) == true
+                            ? nameHighlights.ToList()
+                            : new List<string>(),
+                        FullName = hit.Highlight?.TryGetValue("fullName", out var fullNameHighlights) == true
+                            ? fullNameHighlights.ToList()
+                            : new List<string>(),
+                        Affiliations = hit.Highlight?.TryGetValue("affiliations", out var affHighlights) == true
+                            ? affHighlights.ToList()
+                            : new List<string>()
+                    }
+                };
+            }).ToList()
+        };
+
+        var cacheOptions = new DistributedCacheEntryOptions
+        {
+            AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(15)
+        };
+        await _cache.SetStringAsync(cacheKey, JsonConvert.SerializeObject(response), cacheOptions);
+
+        _logger.LogInformation("Author search completed. Total results: {Total}", response.Total);
+        return response;
+    }
+
+    public async Task IndexAuthorAsync(Core.Entities.Author author)
+    {
+        var document = MapToAuthorDocument(author);
+        var response = await _elasticClient.IndexAsync(document, idx => idx.Index(AuthorIndexName));
+
+        if (!response.IsValidResponse)
+        {
+            _logger.LogError("Failed to index author {AuthorId}: {Error}",
+                author.AuthorId, response.ElasticsearchServerError?.Error?.Reason);
+            throw new Exception($"Failed to index author: {response.ElasticsearchServerError?.Error?.Reason}");
+        }
+
+        _logger.LogInformation("Successfully indexed author {AuthorId}", author.AuthorId);
+    }
+
+    public async Task BulkIndexAuthorsAsync()
+    {
+        _logger.LogInformation("Starting bulk indexing of authors...");
+
+        // Create index if not exists
+        var indexExists = await _elasticClient.Indices.ExistsAsync(AuthorIndexName);
+        if (!indexExists.Exists)
+        {
+            await CreateAuthorIndexAsync();
+        }
+
+        var batchSize = 1000;
+        var skip = 0;
+        var totalIndexed = 0;
+
+        while (true)
+        {
+            var authors = await _context.Authors
+                .AsNoTracking()
+                .OrderBy(a => a.AuthorId)
+                .Skip(skip)
+                .Take(batchSize)
+                .ToListAsync();
+
+            if (!authors.Any())
+                break;
+
+            var documents = authors.Select(MapToAuthorDocument).ToList();
+
+            var bulkResponse = await _elasticClient.BulkAsync(b => b
+                .Index(AuthorIndexName)
+                .IndexMany(documents)
+            );
+
+            if (!bulkResponse.IsValidResponse)
+            {
+                _logger.LogError("Bulk indexing of authors failed: {Error}",
+                    bulkResponse.ElasticsearchServerError?.Error?.Reason);
+                throw new Exception($"Bulk indexing of authors failed: {bulkResponse.ElasticsearchServerError?.Error?.Reason}");
+            }
+
+            totalIndexed += authors.Count;
+            skip += batchSize;
+
+            _logger.LogInformation("Indexed {Count} authors. Total: {Total}", authors.Count, totalIndexed);
+        }
+
+        _logger.LogInformation("Bulk indexing of authors completed. Total authors indexed: {Total}", totalIndexed);
+    }
+
+    public async Task DeleteAuthorIndexAsync()
+    {
+        _logger.LogInformation("Deleting index {IndexName}...", AuthorIndexName);
+        
+        var response = await _elasticClient.Indices.DeleteAsync(AuthorIndexName);
+        
+        if (!response.IsValidResponse)
+        {
+            _logger.LogError("Failed to delete index {IndexName}: {Error}",
+                AuthorIndexName, response.ElasticsearchServerError?.Error?.Reason);
+            throw new Exception($"Failed to delete index: {response.ElasticsearchServerError?.Error?.Reason}");
+        }
+        
+        _logger.LogInformation("Index {IndexName} deleted successfully", AuthorIndexName);
+    }
+
+    public async Task RecreateAuthorIndexAsync()
+    {
+        _logger.LogInformation("Recreating index {IndexName} with correct mapping...", AuthorIndexName);
+        
+        // Delete index if exists
+        var indexExists = await _elasticClient.Indices.ExistsAsync(AuthorIndexName);
+        if (indexExists.Exists)
+        {
+            await DeleteAuthorIndexAsync();
+        }
+        
+        // Create new index with correct mapping
+        await CreateAuthorIndexAsync();
+        
+        // Reindex all authors
+        await BulkIndexAuthorsAsync();
+        
+        _logger.LogInformation("Index {IndexName} recreated successfully", AuthorIndexName);
+    }
+
+    private async Task CreateAuthorIndexAsync()
+    {
+        var response = await _elasticClient.Indices.CreateAsync(AuthorIndexName, c => c
+            .Mappings(m => m
+                .Properties<AuthorDocument>(p => p
+                    .Keyword(k => k.AuthorId)
+                    .Text(t => t.DisplayName, td => td.Analyzer("standard"))
+                    .Text(t => t.FullName, td => td.Analyzer("standard"))
+                    .Keyword(k => k.Orcid)
+                    .IntegerNumber(i => i.WorksCount)
+                    .IntegerNumber(i => i.CitedByCount)
+                    .IntegerNumber(i => i.HIndex)
+                    .Text(t => t.Affiliations, td => td.Analyzer("standard"))
+                    .Text(t => t.LastKnownInstitutions, td => td.Analyzer("standard"))
+                )
+            )
+        );
+
+        if (!response.IsValidResponse)
+        {
+            _logger.LogError("Failed to create author index: {Error}",
+                response.ElasticsearchServerError?.Error?.Reason);
+            throw new Exception($"Failed to create author index: {response.ElasticsearchServerError?.Error?.Reason}");
+        }
+
+        _logger.LogInformation("Index {IndexName} created successfully", AuthorIndexName);
+    }
+
+    private AuthorDocument MapToAuthorDocument(Core.Entities.Author author)
+    {
+        return new AuthorDocument
+        {
+            AuthorId = author.AuthorId,
+            DisplayName = author.DisplayName,
+            FullName = author.FullName,
+            Orcid = author.Orcid,
+            WorksCount = author.WorksCount,
+            CitedByCount = author.CitedByCount,
+            HIndex = author.HIndex,
+            Affiliations = author.Affiliations,
+            LastKnownInstitutions = author.LastKnownInstitutions
+        };
+    }
+
+    private string GenerateAuthorCacheKey(SearchAuthorRequest request)
+    {
+        return $"search:authors:{request.Q}:{request.Page}:{request.Size}:{request.MinWorksCount}:{request.MaxWorksCount}:{request.MinCitedByCount}:{request.MaxCitedByCount}:{request.MinHIndex}:{request.MaxHIndex}";
+    }
 }
 
 public class PaperDocument
@@ -317,4 +619,17 @@ public class PaperDocument
     public int? CitedByCount { get; set; }
     public string Language { get; set; }
     public bool? IsOpenAccess { get; set; }
+}
+
+public class AuthorDocument
+{
+    public Guid AuthorId { get; set; }
+    public string DisplayName { get; set; }
+    public string FullName { get; set; }
+    public string Orcid { get; set; }
+    public int? WorksCount { get; set; }
+    public int? CitedByCount { get; set; }
+    public int? HIndex { get; set; }
+    public string Affiliations { get; set; }
+    public string LastKnownInstitutions { get; set; }
 }

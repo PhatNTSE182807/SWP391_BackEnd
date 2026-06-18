@@ -24,5 +24,7 @@ public partial class ResearchTopic
     public virtual ResearchSubfield Subfield { get; set; }
 
     public virtual ICollection<TopicSourceMapping> TopicSourceMappings { get; set; } = new List<TopicSourceMapping>();
+
+    public virtual ICollection<UserFollowingTopic> UserFollowingTopics { get; set; } = new List<UserFollowingTopic>();
 }
 

@@ -58,5 +58,7 @@ public partial class Paper
     public virtual ICollection<PaperSourceMapping> PaperSourceMappings { get; set; } = new List<PaperSourceMapping>();
 
     public virtual ICollection<PaperTopic> PaperTopics { get; set; } = new List<PaperTopic>();
+
+    public virtual ICollection<UserBookmark> UserBookmarks { get; set; } = new List<UserBookmark>();
 }
 

@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
@@ -29,6 +29,9 @@ public static class DataAccessDependencyInjection
         services.AddScoped<IAuthorRepository, AuthorRepository>();
         services.AddScoped<IKeywordRepository, KeywordRepository>();
         services.AddScoped<ICoreUserRepository, CoreUserRepository>();
+        services.AddScoped<IUserBookmarkRepository, UserBookmarkRepository>();
+        services.AddScoped<IUserFollowingTopicRepository, UserFollowingTopicRepository>();
+        services.AddScoped<IResearchTopicRepository, ResearchTopicRepository>();
     }
 
     private static void AddDatabase(this IServiceCollection services, IConfiguration configuration)
