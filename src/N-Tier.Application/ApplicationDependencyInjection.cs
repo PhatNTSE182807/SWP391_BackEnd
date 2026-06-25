@@ -36,8 +36,9 @@ public static class ApplicationDependencyInjection
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<ISearchService, SearchService>();
         services.AddScoped<IHangfireJobService, HangfireJobService>();
-        services.AddScoped<IDashboardService, DashboardService>();
         services.AddScoped<IAnalyticsService, AnalyticsService>();
+        services.AddScoped<IDashboardService, DashboardService>();
+        services.AddScoped<ITopicService, TopicService>();
 
         if (env.IsDevelopment())
             services.AddScoped<IEmailService, DevEmailService>();
@@ -47,6 +48,9 @@ public static class ApplicationDependencyInjection
 
     private static void RegisterMapper(this IServiceCollection services)
     {
+        var config = TypeAdapterConfig.GlobalSettings;
+        config.Scan(typeof(IMappingProfilesMarker).Assembly);
+
         services.AddMapster();
     }
 

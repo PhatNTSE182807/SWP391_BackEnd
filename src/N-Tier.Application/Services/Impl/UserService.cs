@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -124,10 +124,12 @@ public class UserService : IUserService
         if (user.Role?.RoleName == "System Administrator")
             throw new BadRequestException("Cannot delete a System Administrator account");
 
-        if (user.IsActive)
-            throw new BadRequestException("User must be deactivated before deletion");
+        // Soft delete: đánh dấu đã xóa, không xóa khỏi DB
+        user.IsDeleted = true;
+        user.DeletedAt = DateTimeOffset.UtcNow;
+        user.IsActive = false;
 
-        await _coreUserRepository.DeleteAsync(user);
+        await _coreUserRepository.UpdateAsync(user);
     }
 
     public async Task<UserResponseModel> GetProfileAsync()

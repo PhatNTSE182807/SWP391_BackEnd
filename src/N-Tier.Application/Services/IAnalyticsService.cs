@@ -7,23 +7,33 @@ namespace N_Tier.Application.Services;
 
 public interface IAnalyticsService
 {
-    /// <summary>
-    /// Returns yearly paper counts for a given keyword over a specified number of years.
-    /// </summary>
+    // Research Trends (Elasticsearch)
+    Task<List<ChartDataPoint>> GetPaperCountByYearAsync();
+    Task<List<ChartDataPoint>> GetCitationsByYearAsync();
+    Task<List<ChartDataPoint>> GetTopTopicsAsync(int size);
+    Task<List<ChartDataPoint>> GetTopDomainsAsync(int size);
+    Task<List<SeriesDataDto>> GetKeywordTrendOverTimeAsync(List<string> keywords);
+
+    // Author Statistics (Elasticsearch)
+    Task<List<ChartDataPoint>> GetTopAuthorsByCitationsAsync(int size);
+    Task<List<ChartDataPoint>> GetTopAuthorsByHIndexAsync(int size);
+    Task<NetworkGraphDto> GetAuthorCollaborationNetworkAsync(int size);
+
+    // Journal Statistics (Elasticsearch)
+    Task<List<ChartDataPoint>> GetTopJournalsByPaperCountAsync(int size);
+    Task<List<ChartDataPoint>> GetTopJournalsByCitationsAsync(int size);
+    Task<List<ChartDataPoint>> GetOpenAccessRatioAsync();
+
+    // Keyword Statistics (Elasticsearch)
+    Task<List<ChartDataPoint>> GetKeywordCloudAsync(int size);
+    Task<List<SeriesDataDto>> GetTopKeywordsByYearAsync(int size);
+    Task<NetworkGraphDto> GetKeywordCoOccurrenceNetworkAsync(int size);
+
+    // Keyword & Topic Trends (EF Core)
     Task<KeywordTrendDto> GetKeywordTrendsAsync(string keyword, int years = 5);
-
-    /// <summary>
-    /// Returns yearly paper counts for a given topic name over a specified number of years.
-    /// </summary>
     Task<TopicTrendDto> GetTopicTrendsAsync(string topic, int years = 5);
-
-    /// <summary>
-    /// Returns Top 10 topics with highest publication growth in the latest available period.
-    /// </summary>
     Task<IEnumerable<TrendingTopicDto>> GetTrendingTopicsAsync(int topCount = 10);
 
-    /// <summary>
-    /// Returns personalized researcher dashboard stats.
-    /// </summary>
+    // Researcher Dashboard (EF Core)
     Task<ResearcherDashboardDto> GetResearcherDashboardAsync(Guid userId);
 }
