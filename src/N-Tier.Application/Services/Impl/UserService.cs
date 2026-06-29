@@ -46,7 +46,8 @@ public class UserService : IUserService
             Email       = u.Email,
             Phonenumber = u.Phonenumber,
             RoleName    = u.Role?.RoleName,
-            IsActive    = u.IsActive
+            IsActive    = u.IsActive,
+            CreatedAt   = u.CreatedAt
         }).ToList();
     }
 
@@ -79,7 +80,8 @@ public class UserService : IUserService
             Email       = user.Email,
             Phonenumber = user.Phonenumber,
             RoleName    = user.Role?.RoleName,
-            IsActive    = user.IsActive
+            IsActive    = user.IsActive,
+            CreatedAt   = user.CreatedAt
         };
     }
 
@@ -104,7 +106,8 @@ public class UserService : IUserService
             Email       = user.Email,
             Phonenumber = user.Phonenumber,
             RoleName    = user.Role?.RoleName,
-            IsActive    = user.IsActive
+            IsActive    = user.IsActive,
+            CreatedAt   = user.CreatedAt
         };
     }
 
@@ -149,7 +152,8 @@ public class UserService : IUserService
             Email = user.Email,
             Phonenumber = user.Phonenumber,
             RoleName = user.Role?.RoleName,
-            IsActive = user.IsActive
+            IsActive = user.IsActive,
+            CreatedAt = user.CreatedAt
         };
     }
 
@@ -205,7 +209,8 @@ public class UserService : IUserService
             Email = user.Email,
             Phonenumber = user.Phonenumber,
             RoleName = user.Role?.RoleName,
-            IsActive = user.IsActive
+            IsActive = user.IsActive,
+            CreatedAt = user.CreatedAt
         };
     }
 

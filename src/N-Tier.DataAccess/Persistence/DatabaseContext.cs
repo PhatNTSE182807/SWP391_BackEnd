@@ -841,6 +841,9 @@ public partial class DatabaseContext : DbContext
             entity.Property(e => e.Phonenumber)
                 .HasMaxLength(50)
                 .HasColumnName("phonenumber");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(dateadd(hour,(7),sysutcdatetime()))")
+                .HasColumnName("created_at");
             entity.Property(e => e.IsActive)
                 .HasDefaultValue(true)
                 .HasColumnName("is_active");

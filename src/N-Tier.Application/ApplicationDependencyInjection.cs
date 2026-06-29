@@ -38,6 +38,7 @@ public static class ApplicationDependencyInjection
         services.AddScoped<IHangfireJobService, HangfireJobService>();
         services.AddScoped<IAnalyticsService, AnalyticsService>();
         services.AddScoped<IDashboardService, DashboardService>();
+        services.AddScoped<IAdminDashboardService, AdminDashboardService>();
         services.AddScoped<ITopicService, TopicService>();
 
         if (env.IsDevelopment())

@@ -17,6 +17,8 @@ public partial class User
 
     public string Phonenumber { get; set; }
 
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow.AddHours(7);
+
     /// <summary>
     /// Trạng thái tài khoản: true = active, false = deactivated
     /// </summary>
