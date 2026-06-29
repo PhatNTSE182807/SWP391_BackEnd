@@ -44,9 +44,7 @@ public class DashboardService : IDashboardService
         var maxDate = await _context.Papers.MaxAsync(p => (DateOnly?)p.PublicationDate);
         var referenceDate = maxDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
 
-        var startDate = referenceDate.AddMonths(-lastXMonths);
-        var startYear = startDate.Year;
-        var startMonth = startDate.Month;
+        var startDate = referenceDate.AddMonths(-lastXMonths + 1);
 
         // Get top 3 topics overall to show in trends
         var topTopics = await _context.PaperTopics
@@ -88,7 +86,7 @@ public class DashboardService : IDashboardService
 
             // Fill missing months
             var completeMonthlyCounts = new List<MonthlyCountDto>();
-            for (int i = lastXMonths; i >= 0; i--)
+            for (int i = lastXMonths - 1; i >= 0; i--)
             {
                 var d = referenceDate.AddMonths(-i);
                 var existing = monthlyCounts.FirstOrDefault(m => m.Year == d.Year && m.MonthNumber == d.Month);
