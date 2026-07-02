@@ -32,7 +32,7 @@ public interface IAnalyticsService
     // Keyword & Topic Trends (EF Core)
     Task<KeywordTrendDto> GetKeywordTrendsAsync(string keyword, int years = 5);
     Task<TopicTrendDto> GetTopicTrendsAsync(string topic, int years = 5);
-    Task<IEnumerable<TrendingTopicDto>> GetTrendingTopicsAsync(int topCount = 10);
+    Task<IEnumerable<TrendingTopicDto>> GetTrendingTopicsAsync(int years = 1, int topCount = 10);
 
     // Researcher Dashboard (EF Core)
     Task<ResearcherDashboardDto> GetResearcherDashboardAsync(Guid userId);

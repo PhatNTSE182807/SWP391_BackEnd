@@ -1054,44 +1054,54 @@ public class AnalyticsService : IAnalyticsService
         };
     }
 
-    public async Task<IEnumerable<TrendingTopicDto>> GetTrendingTopicsAsync(int topCount = 10)
+    public async Task<IEnumerable<TrendingTopicDto>> GetTrendingTopicsAsync(int years = 1, int topCount = 10)
     {
-        var maxYear = await _context.Papers
-            .Where(p => p.PublicationYear != null)
-            .MaxAsync(p => (int?)p.PublicationYear) ?? DateTime.UtcNow.Year;
+        var yearlyTopicLinkCounts = await _context.PaperTopics
+            .Where(pt => pt.Paper.PublicationYear != null)
+            .GroupBy(pt => pt.Paper.PublicationYear!.Value)
+            .Select(g => new
+            {
+                Year = g.Key,
+                TopicLinkCount = g.Count()
+            })
+            .OrderByDescending(x => x.Year)
+            .ToListAsync();
 
-        var previousYear = maxYear - 1;
+        if (!yearlyTopicLinkCounts.Any())
+            return Enumerable.Empty<TrendingTopicDto>();
 
-        var allTopicIds = await _context.PaperTopics
-            .GroupBy(pt => pt.TopicId)
-            .OrderByDescending(g => g.Count())
-            .Take(topCount * 3)
-            .Select(g => g.Key)
+        var minimumTopicLinksForTrendYear = Math.Max(3, topCount);
+        var currentYear = yearlyTopicLinkCounts
+            .FirstOrDefault(x => x.TopicLinkCount >= minimumTopicLinksForTrendYear)?.Year
+            ?? yearlyTopicLinkCounts.First().Year;
+
+        var previousYear = currentYear - years;
+
+        var topicCounts = await _context.PaperTopics
+            .Where(pt => pt.Paper.PublicationYear == currentYear || pt.Paper.PublicationYear == previousYear)
+            .GroupBy(pt => new { pt.TopicId, pt.Topic.TopicName })
+            .Select(g => new
+            {
+                g.Key.TopicId,
+                g.Key.TopicName,
+                CurrentYearCount = g.Count(pt => pt.Paper.PublicationYear == currentYear),
+                PreviousYearCount = g.Count(pt => pt.Paper.PublicationYear == previousYear)
+            })
+            .Where(x => x.CurrentYearCount > 0)
             .ToListAsync();
 
         var trendingTopics = new List<TrendingTopicDto>();
 
-        foreach (var topicId in allTopicIds)
+        foreach (var topic in topicCounts)
         {
-            var topic = await _context.ResearchTopics.FindAsync(topicId);
-            if (topic == null) continue;
-
-            var currentYearCount = await _context.PaperTopics
-                .Include(pt => pt.Paper)
-                .CountAsync(pt => pt.TopicId == topicId && pt.Paper.PublicationYear == maxYear);
-
-            var previousYearCount = await _context.PaperTopics
-                .Include(pt => pt.Paper)
-                .CountAsync(pt => pt.TopicId == topicId && pt.Paper.PublicationYear == previousYear);
-
             double growth = 0;
             string trend;
 
-            if (previousYearCount > 0)
+            if (topic.PreviousYearCount > 0)
             {
-                growth = Math.Round((double)(currentYearCount - previousYearCount) / previousYearCount * 100, 1);
+                growth = Math.Round((double)(topic.CurrentYearCount - topic.PreviousYearCount) / topic.PreviousYearCount * 100, 1);
             }
-            else if (currentYearCount > 0)
+            else if (topic.CurrentYearCount > 0)
             {
                 growth = 100.0;
             }
@@ -1103,14 +1113,19 @@ public class AnalyticsService : IAnalyticsService
             trendingTopics.Add(new TrendingTopicDto
             {
                 TopicName = topic.TopicName,
-                PaperCount = currentYearCount,
+                PaperCount = topic.CurrentYearCount,
+                PreviousPaperCount = topic.PreviousYearCount,
                 GrowthPercentage = growth,
-                Trend = trend
+                Trend = trend,
+                CurrentYear = currentYear,
+                PreviousYear = previousYear,
+                Years = years
             });
         }
 
         return trendingTopics
             .OrderByDescending(t => t.GrowthPercentage)
+            .ThenByDescending(t => t.PaperCount)
             .Take(topCount);
     }
 

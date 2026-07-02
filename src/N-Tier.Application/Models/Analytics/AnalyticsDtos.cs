@@ -20,8 +20,12 @@ public class TrendingTopicDto
 {
     public string TopicName { get; set; }
     public int PaperCount { get; set; }
+    public int PreviousPaperCount { get; set; }
     public double GrowthPercentage { get; set; }
     public string Trend { get; set; } // "up", "down", "stable"
+    public int CurrentYear { get; set; }
+    public int PreviousYear { get; set; }
+    public int Years { get; set; }
 }
 
 // GET /api/analytics/topic-trends
