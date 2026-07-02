@@ -172,12 +172,18 @@ public class AnalyticsController : ApiController
     }
 
     /// <summary>
-    /// Returns Top 10 topics with highest publication growth in the latest available period.
+    /// Returns topics with highest publication growth over the latest available 1, 5, or 10 year window.
     /// </summary>
     [HttpGet("trending-topics")]
-    public async Task<IActionResult> GetTrendingTopicsAsync()
+    public async Task<IActionResult> GetTrendingTopicsAsync([FromQuery] int years = 1, [FromQuery] int topCount = 10)
     {
-        var result = await _analyticsService.GetTrendingTopicsAsync(10);
+        if (years != 1 && years != 5 && years != 10)
+            return BadRequest(ApiResult<IEnumerable<TrendingTopicDto>>.Failure(new[] { "years must be one of: 1, 5, 10." }));
+
+        if (topCount <= 0 || topCount > 50)
+            return BadRequest(ApiResult<IEnumerable<TrendingTopicDto>>.Failure(new[] { "topCount must be between 1 and 50." }));
+
+        var result = await _analyticsService.GetTrendingTopicsAsync(years, topCount);
         return Ok(ApiResult<IEnumerable<TrendingTopicDto>>.Success(result));
     }
 
