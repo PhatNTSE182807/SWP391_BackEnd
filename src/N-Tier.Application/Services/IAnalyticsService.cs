@@ -23,15 +23,18 @@ public interface IAnalyticsService
     Task<List<ChartDataPoint>> GetTopJournalsByPaperCountAsync(int size);
     Task<List<ChartDataPoint>> GetTopJournalsByCitationsAsync(int size);
     Task<List<ChartDataPoint>> GetOpenAccessRatioAsync();
+    Task<List<JournalTrackerDto>> GetJournalTrackerAsync(int size = 20, int years = 5);
 
     // Keyword Statistics (Elasticsearch)
     Task<List<ChartDataPoint>> GetKeywordCloudAsync(int size);
     Task<List<SeriesDataDto>> GetTopKeywordsByYearAsync(int size);
     Task<NetworkGraphDto> GetKeywordCoOccurrenceNetworkAsync(int size);
+    Task<NetworkGraphDto> GetTopicCoOccurrenceNetworkAsync(int size);
 
     // Keyword & Topic Trends (EF Core)
     Task<KeywordTrendDto> GetKeywordTrendsAsync(string keyword, int years = 5);
     Task<TopicTrendDto> GetTopicTrendsAsync(string topic, int years = 5);
+    Task<List<TopicComparisonDto>> CompareTopicsAsync(List<Guid> topicIds, int years = 5);
     Task<IEnumerable<TrendingTopicDto>> GetTrendingTopicsAsync(int years = 1, int topCount = 10);
 
     // Researcher Dashboard (EF Core)

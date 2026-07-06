@@ -35,6 +35,36 @@ public class TopicTrendDto
     public List<YearlyCountDto> YearlyCounts { get; set; } = new();
 }
 
+// GET /api/analytics/topics/compare
+public class TopicComparisonDto
+{
+    public Guid TopicId { get; set; }
+    public string TopicName { get; set; }
+    public int PaperCount { get; set; }
+    public int CitationCount { get; set; }
+    public int JournalCount { get; set; }
+    public int TopicHIndex { get; set; }
+    public double GrowthPercentage { get; set; }
+    public int StartYear { get; set; }
+    public int EndYear { get; set; }
+    public List<YearlyCountDto> YearlyCounts { get; set; } = new();
+}
+
+// GET /api/analytics/journals/tracker
+public class JournalTrackerDto
+{
+    public Guid JournalId { get; set; }
+    public string JournalName { get; set; }
+    public string Publisher { get; set; }
+    public string HomepageUrl { get; set; }
+    public bool IsOpenAccess { get; set; }
+    public int PaperCount { get; set; }
+    public int CitationCount { get; set; }
+    public double GrowthPercentage { get; set; }
+    public int? LastPublicationYear { get; set; }
+    public List<string> TopKeywords { get; set; } = new();
+}
+
 // GET /api/analytics/dashboard
 public class ResearcherDashboardDto
 {
