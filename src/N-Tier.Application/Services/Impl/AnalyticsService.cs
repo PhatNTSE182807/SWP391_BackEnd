@@ -44,12 +44,29 @@ public class AnalyticsService : IAnalyticsService
 
         if (!response.IsValidResponse)
         {
-            _logger.LogError("ES Error in GetPaperCountByYearAsync: {Error}", response.ElasticsearchServerError?.Error?.Reason);
+            _logger.LogError("[Analytics] ES Error in GetPaperCountByYearAsync: {Error} | Debug: {Debug}",
+                response.ElasticsearchServerError?.Error?.Reason,
+                response.DebugInformation);
+            return new List<ChartDataPoint>();
+        }
+
+        _logger.LogInformation("[Analytics] GetPaperCountByYearAsync: TotalHits={Total}, Aggs={AggsNull}",
+            response.Total, response.Aggregations == null ? "NULL" : "OK");
+
+        if (response.Aggregations == null)
+        {
+            _logger.LogWarning("[Analytics] Aggregations is NULL in GetPaperCountByYearAsync — index may be empty or not indexed");
             return new List<ChartDataPoint>();
         }
 
         var terms = response.Aggregations.GetLongTerms("by_year");
-        if (terms == null) return new List<ChartDataPoint>();
+        if (terms == null)
+        {
+            _logger.LogWarning("[Analytics] GetLongTerms('by_year') returned NULL — field 'publicationYear' may not be integer type in ES mapping");
+            return new List<ChartDataPoint>();
+        }
+
+        _logger.LogInformation("[Analytics] by_year buckets count: {Count}", terms.Buckets.Count);
 
         return terms.Buckets
             .Select(b => new ChartDataPoint
@@ -126,15 +143,33 @@ public class AnalyticsService : IAnalyticsService
 
         if (!response.IsValidResponse)
         {
-            _logger.LogError("ES Error in GetTopTopicsAsync: {Error}", response.ElasticsearchServerError?.Error?.Reason);
+            _logger.LogError("[Analytics] ES Error in GetTopTopicsAsync: {Error} | Debug: {Debug}",
+                response.ElasticsearchServerError?.Error?.Reason,
+                response.DebugInformation);
+            return new List<ChartDataPoint>();
+        }
+
+        if (response.Aggregations == null)
+        {
+            _logger.LogWarning("[Analytics] Aggregations NULL in GetTopTopicsAsync");
             return new List<ChartDataPoint>();
         }
 
         var nested = response.Aggregations.GetNested("nested_topics");
-        if (nested == null) return new List<ChartDataPoint>();
+        if (nested == null)
+        {
+            _logger.LogWarning("[Analytics] GetNested('nested_topics') NULL — field 'topics' may not be mapped as nested type");
+            return new List<ChartDataPoint>();
+        }
 
         var terms = nested.Aggregations.GetStringTerms("top_topics");
-        if (terms == null) return new List<ChartDataPoint>();
+        if (terms == null)
+        {
+            _logger.LogWarning("[Analytics] GetStringTerms('top_topics') NULL — field 'topics.topicName' may not be keyword type");
+            return new List<ChartDataPoint>();
+        }
+
+        _logger.LogInformation("[Analytics] top_topics buckets: {Count}", terms.Buckets.Count);
 
         return terms.Buckets
             .Select(b => new ChartDataPoint

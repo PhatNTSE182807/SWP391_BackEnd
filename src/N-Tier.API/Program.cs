@@ -100,7 +100,7 @@ builder.Services.AddSwaggerGen(options =>
 builder.Services.AddHttpContextAccessor();
 
 builder.Services.AddDataAccess(builder.Configuration)
-    .AddApplication(builder.Environment);
+    .AddApplication(builder.Environment, builder.Configuration);
 
 builder.Services.AddJwt(builder.Configuration);
 
