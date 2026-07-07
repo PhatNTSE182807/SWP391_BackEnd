@@ -41,4 +41,23 @@ public class JournalRepository : BaseRepository<Journal>, IJournalRepository
 
         return journal;
     }
+
+    public async Task<(IEnumerable<Journal> Results, int TotalCount)> GetPaginatedAsync(int page, int size)
+    {
+        var total = await Context.Journals.CountAsync();
+        var results = await Context.Journals
+            .AsNoTracking()
+            .AsSplitQuery()
+            .Include(j => j.JournalSourceMappings)
+            .Include(j => j.JournalTopics)
+                .ThenInclude(jt => jt.Topic)
+            .Include(j => j.JournalTypeNavigation)
+            .Include(j => j.Papers)
+            .OrderBy(j => j.JournalName)
+            .Skip((page - 1) * size)
+            .Take(size)
+            .ToListAsync();
+
+        return (results, total);
+    }
 }

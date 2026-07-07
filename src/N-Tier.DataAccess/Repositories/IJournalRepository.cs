@@ -9,4 +9,5 @@ public interface IJournalRepository : IBaseRepository<Journal>
 {
     Task<IEnumerable<Journal>> GetAllWithInclusionsAsync();
     Task<Journal> GetByIdAsync(Guid id);
+    Task<(IEnumerable<Journal> Results, int TotalCount)> GetPaginatedAsync(int page, int size);
 }

@@ -39,4 +39,22 @@ public class AuthorRepository : BaseRepository<Author>, IAuthorRepository
 
         return author;
     }
+
+    public async Task<(IEnumerable<Author> Results, int TotalCount)> GetPaginatedAsync(int page, int size)
+    {
+        var total = await Context.Authors.CountAsync();
+        var results = await Context.Authors
+            .AsNoTracking()
+            .AsSplitQuery()
+            .Include(a => a.AuthorSourceMappings)
+            .Include(a => a.PaperAuthors)
+                .ThenInclude(pa => pa.Paper)
+                    .ThenInclude(p => p.Journal)
+            .OrderBy(a => a.DisplayName)
+            .Skip((page - 1) * size)
+            .Take(size)
+            .ToListAsync();
+
+        return (results, total);
+    }
 }
