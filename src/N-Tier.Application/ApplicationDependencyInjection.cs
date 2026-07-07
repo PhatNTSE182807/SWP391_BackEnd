@@ -15,16 +15,16 @@ namespace N_Tier.Application;
 
 public static class ApplicationDependencyInjection
 {
-    public static IServiceCollection AddApplication(this IServiceCollection services, IWebHostEnvironment env)
+    public static IServiceCollection AddApplication(this IServiceCollection services, IWebHostEnvironment env, IConfiguration configuration)
     {
-        services.AddServices(env);
+        services.AddServices(env, configuration);
 
         services.RegisterMapper();
 
         return services;
     }
 
-    private static void AddServices(this IServiceCollection services, IWebHostEnvironment env)
+    private static void AddServices(this IServiceCollection services, IWebHostEnvironment env, IConfiguration configuration)
     {
         services.AddScoped<IClaimService, ClaimService>();
         services.AddScoped<ITemplateService, TemplateService>();
@@ -41,7 +41,8 @@ public static class ApplicationDependencyInjection
         services.AddScoped<IAdminDashboardService, AdminDashboardService>();
         services.AddScoped<ITopicService, TopicService>();
 
-        if (env.IsDevelopment())
+        var smtpSettings = configuration.GetSection("SmtpSettings").Get<SmtpSettings>();
+        if (env.IsDevelopment() && (smtpSettings == null || string.IsNullOrEmpty(smtpSettings.Password) || smtpSettings.Password.Contains("<account-password>")))
             services.AddScoped<IEmailService, DevEmailService>();
         else
             services.AddScoped<IEmailService, EmailService>();

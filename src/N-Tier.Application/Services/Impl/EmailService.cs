@@ -1,4 +1,5 @@
-﻿using MailKit.Net.Smtp;
+using MailKit.Net.Smtp;
+using MailKit.Security;
 using MimeKit;
 using N_Tier.Application.Common.Email;
 
@@ -17,7 +18,7 @@ public class EmailService(SmtpSettings smtpSettings) : IEmailService
 
         try
         {
-            await client.ConnectAsync(smtpSettings.Server, smtpSettings.Port, true);
+            await client.ConnectAsync(smtpSettings.Server, smtpSettings.Port, SecureSocketOptions.Auto);
             client.AuthenticationMechanisms.Remove("XOAUTH2");
             await client.AuthenticateAsync(smtpSettings.Username, smtpSettings.Password);
 

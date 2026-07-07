@@ -49,15 +49,60 @@ public class SearchService : ISearchService
 
         var mustQueries = new List<Query>();
 
-        // Full-text search on title and abstract
+        // Full-text search on title, abstract, doi, journal, author, and keywords
         if (!string.IsNullOrWhiteSpace(request.Q))
         {
-            mustQueries.Add(new MultiMatchQuery
+            var shouldQueries = new List<Query>
             {
-                Query = request.Q,
-                Fields = new[] { "title^2", "abstract" }, 
-                Fuzziness = new Fuzziness("AUTO"),
-                Operator = Operator.Or
+                new MatchQuery(new Field("title"))
+                {
+                    Query = request.Q,
+                    Boost = 2.0f,
+                    Fuzziness = new Fuzziness("AUTO")
+                },
+                new MatchQuery(new Field("abstract"))
+                {
+                    Query = request.Q,
+                    Fuzziness = new Fuzziness("AUTO")
+                },
+                new MatchQuery(new Field("doi"))
+                {
+                    Query = request.Q,
+                    Boost = 3.0f // Higher boost for DOI
+                },
+                new NestedQuery
+                {
+                    Path = "journal",
+                    Query = new MatchQuery(new Field("journal.journalName"))
+                    {
+                        Query = request.Q,
+                        Fuzziness = new Fuzziness("AUTO")
+                    }
+                },
+                new NestedQuery
+                {
+                    Path = "authors",
+                    Query = new MatchQuery(new Field("authors.displayName"))
+                    {
+                        Query = request.Q,
+                        Fuzziness = new Fuzziness("AUTO")
+                    }
+                },
+                new NestedQuery
+                {
+                    Path = "keywords",
+                    Query = new MatchQuery(new Field("keywords.keywordName"))
+                    {
+                        Query = request.Q,
+                        Fuzziness = new Fuzziness("AUTO")
+                    }
+                }
+            };
+
+            mustQueries.Add(new BoolQuery
+            {
+                Should = shouldQueries.ToArray(),
+                MinimumShouldMatch = 1
             });
         }
 
@@ -362,6 +407,7 @@ public class SearchService : ISearchService
                     .Keyword(k => k.PaperId)
                     .Text(t => t.Title, td => td.Analyzer("standard"))
                     .Text(t => t.Abstract, td => td.Analyzer("standard"))
+                    .Text(t => t.Doi, td => td.Analyzer("standard"))
                     .IntegerNumber(i => i.PublicationYear)
                     .IntegerNumber(i => i.CitedByCount)
                     .Keyword(k => k.Language)
@@ -369,14 +415,14 @@ public class SearchService : ISearchService
                     .Nested("journal", n => n
                         .Properties(jp => jp
                             .Keyword("journalId")
-                            .Keyword("journalName")
+                            .Text("journalName", td => td.Analyzer("standard"))
                             .Boolean("isOpenAccess")
                         )
                     )
                     .Nested("authors", n => n
                         .Properties(ap => ap
                             .Keyword("authorId")
-                            .Keyword("displayName")
+                            .Text("displayName", td => td.Analyzer("standard"))
                             .IntegerNumber("citedByCount")
                             .IntegerNumber("hIndex")
                         )
@@ -384,7 +430,7 @@ public class SearchService : ISearchService
                     .Nested("keywords", n => n
                         .Properties(kp => kp
                             .Keyword("keywordId")
-                            .Keyword("keywordName")
+                            .Text("keywordName", td => td.Analyzer("standard"))
                         )
                     )
                     .Nested("topics", n => n
@@ -420,6 +466,7 @@ public class SearchService : ISearchService
             PaperId = paper.PaperId,
             Title = paper.Title,
             Abstract = paper.Abstract,
+            Doi = paper.Doi,
             PublicationYear = paper.PublicationYear,
             CitedByCount = paper.CitedByCount,
             Language = paper.Language,
@@ -876,6 +923,7 @@ public class PaperDocument
     public Guid PaperId { get; set; }
     public string Title { get; set; }
     public string Abstract { get; set; }
+    public string Doi { get; set; }
     public int? PublicationYear { get; set; }
     public int? CitedByCount { get; set; }
     public string Language { get; set; }
