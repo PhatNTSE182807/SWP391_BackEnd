@@ -18,7 +18,7 @@ public class AuthorService : IAuthorService
 
     public async Task<List<AuthorResponseModel>> GetAllAuthorsAsync()
     {
-        var authors = await _authorRepository.GetAllAsync(a => true);
+        var authors = await _authorRepository.GetAllWithInclusionsAsync();
         return authors.Adapt<List<AuthorResponseModel>>();
     }
 

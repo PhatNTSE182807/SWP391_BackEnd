@@ -3,8 +3,10 @@ using N_Tier.Application.Models;
 
 namespace N_Tier.Application.Models.Topic
 {
-    public class TopicResponseModel : BaseResponseModel
+    public class TopicResponseModel
     {
+        public Guid TopicId { get; set; }
+
         public Guid? SubfieldId { get; set; }
 
         public string TopicName { get; set; }

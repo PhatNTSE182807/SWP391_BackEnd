@@ -146,9 +146,9 @@ app.UseAuthorization();
 
 app.UseMiddleware<PerformanceMiddleware>();
 
-app.UseMiddleware<TransactionMiddleware>();
-
 app.UseMiddleware<ExceptionHandlingMiddleware>();
+
+app.UseMiddleware<TransactionMiddleware>();
 
 app.MapControllers();
 

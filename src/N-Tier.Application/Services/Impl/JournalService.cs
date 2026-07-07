@@ -19,13 +19,13 @@ public class JournalService : IJournalService
 
     public async Task<List<JournalResponseModel>> GetAllAsync()
     {
-        var entities = await _journalRepository.GetAllAsync(_ => true);
+        var entities = await _journalRepository.GetAllWithInclusionsAsync();
         return entities.Adapt<List<JournalResponseModel>>();
     }
 
     public async Task<JournalResponseModel> GetByIdAsync(Guid id)
     {
-        var entity = await _journalRepository.GetFirstAsync(e => e.JournalId == id);
+        var entity = await _journalRepository.GetByIdAsync(id);
         return entity.Adapt<JournalResponseModel>();
     }
 
