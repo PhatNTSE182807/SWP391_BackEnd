@@ -32,6 +32,7 @@ public static class ApplicationDependencyInjection
         services.AddScoped<IJournalService, JournalService>();
         services.AddScoped<IPaperService, PaperService>();
         services.AddScoped<IAuthorService, AuthorService>();
+        services.AddScoped<IKeywordService, KeywordService>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<ISearchService, SearchService>();

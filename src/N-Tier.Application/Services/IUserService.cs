@@ -29,4 +29,8 @@ public interface IUserService
     Task<List<UserFollowingTopicResponseModel>> GetFollowingTopicsAsync();
     Task<UserFollowingTopicResponseModel> FollowTopicAsync(Guid topicId);
     Task UnfollowTopicAsync(Guid topicId);
+
+    Task<List<UserFollowingJournalResponseModel>> GetFollowingJournalsAsync();
+    Task<UserFollowingJournalResponseModel> FollowJournalAsync(Guid journalId);
+    Task UnfollowJournalAsync(Guid journalId);
 }

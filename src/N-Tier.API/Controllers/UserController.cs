@@ -92,4 +92,34 @@ public class UserController(IUserService userService) : ApiController
         await userService.UnfollowTopicAsync(topicId);
         return Ok(ApiResult<string>.Success("Unfollowed topic successfully"));
     }
+
+    /// <summary>
+    /// Lấy danh sách journals user đang follow.
+    /// </summary>
+    [HttpGet("following/journals")]
+    public async Task<IActionResult> GetFollowingJournalsAsync()
+    {
+        var result = await userService.GetFollowingJournalsAsync();
+        return Ok(ApiResult<System.Collections.Generic.List<UserFollowingJournalResponseModel>>.Success(result));
+    }
+
+    /// <summary>
+    /// Follow một journal.
+    /// </summary>
+    [HttpPost("following/journals/{journalId}")]
+    public async Task<IActionResult> FollowJournalAsync([FromRoute] System.Guid journalId)
+    {
+        var result = await userService.FollowJournalAsync(journalId);
+        return Ok(ApiResult<UserFollowingJournalResponseModel>.Success(result));
+    }
+
+    /// <summary>
+    /// Unfollow một journal.
+    /// </summary>
+    [HttpDelete("following/journals/{journalId}")]
+    public async Task<IActionResult> UnfollowJournalAsync([FromRoute] System.Guid journalId)
+    {
+        await userService.UnfollowJournalAsync(journalId);
+        return Ok(ApiResult<string>.Success("Unfollowed journal successfully"));
+    }
 }

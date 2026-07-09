@@ -16,23 +16,29 @@ public class UserService : IUserService
     private readonly ICoreUserRepository _coreUserRepository;
     private readonly IUserBookmarkRepository _userBookmarkRepository;
     private readonly IUserFollowingTopicRepository _userFollowingTopicRepository;
+    private readonly IUserFollowingJournalRepository _userFollowingJournalRepository;
     private readonly IPaperRepository _paperRepository;
     private readonly IResearchTopicRepository _topicRepository;
+    private readonly IJournalRepository _journalRepository;
     private readonly IClaimService _claimService;
 
     public UserService(
         ICoreUserRepository coreUserRepository, 
         IUserBookmarkRepository userBookmarkRepository,
         IUserFollowingTopicRepository userFollowingTopicRepository,
+        IUserFollowingJournalRepository userFollowingJournalRepository,
         IPaperRepository paperRepository,
         IResearchTopicRepository topicRepository,
+        IJournalRepository journalRepository,
         IClaimService claimService)
     {
         _coreUserRepository = coreUserRepository;
         _userBookmarkRepository = userBookmarkRepository;
         _userFollowingTopicRepository = userFollowingTopicRepository;
+        _userFollowingJournalRepository = userFollowingJournalRepository;
         _paperRepository = paperRepository;
         _topicRepository = topicRepository;
+        _journalRepository = journalRepository;
         _claimService = claimService;
     }
 
@@ -368,5 +374,72 @@ public class UserService : IUserService
             throw new NotFoundException("Follow relationship not found");
 
         await _userFollowingTopicRepository.DeleteAsync(follow);
+    }
+
+    public async Task<List<UserFollowingJournalResponseModel>> GetFollowingJournalsAsync()
+    {
+        var currentUserIdStr = _claimService.GetUserId();
+        if (string.IsNullOrEmpty(currentUserIdStr) || !Guid.TryParse(currentUserIdStr, out var currentUserId))
+            throw new UnauthorizedException("User is not authenticated");
+
+        var followingJournals = await _userFollowingJournalRepository.GetFollowingJournalsByUserIdAsync(currentUserId);
+
+        return followingJournals.Select(f => new UserFollowingJournalResponseModel
+        {
+            FollowId = f.FollowId,
+            UserId = f.UserId,
+            JournalId = f.JournalId,
+            CreatedAt = f.CreatedAt,
+            JournalName = f.Journal?.JournalName,
+            NormalizedName = f.Journal?.NormalizedName
+        }).ToList();
+    }
+
+    public async Task<UserFollowingJournalResponseModel> FollowJournalAsync(Guid journalId)
+    {
+        var currentUserIdStr = _claimService.GetUserId();
+        if (string.IsNullOrEmpty(currentUserIdStr) || !Guid.TryParse(currentUserIdStr, out var currentUserId))
+            throw new UnauthorizedException("User is not authenticated");
+
+        // Validate journal
+        var journal = await _journalRepository.GetFirstAsync(j => j.JournalId == journalId);
+        if (journal == null)
+            throw new NotFoundException($"Journal with id {journalId} not found");
+
+        // Check if already following
+        var isFollowing = await _userFollowingJournalRepository.IsFollowingAsync(currentUserId, journalId);
+        if (isFollowing)
+            throw new BadRequestException("You are already following this journal");
+
+        var follow = new N_Tier.Core.Entities.UserFollowingJournal
+        {
+            UserId = currentUserId,
+            JournalId = journalId
+        };
+
+        var result = await _userFollowingJournalRepository.AddAsync(follow);
+
+        return new UserFollowingJournalResponseModel
+        {
+            FollowId = result.FollowId,
+            UserId = result.UserId,
+            JournalId = result.JournalId,
+            CreatedAt = result.CreatedAt,
+            JournalName = journal.JournalName,
+            NormalizedName = journal.NormalizedName
+        };
+    }
+
+    public async Task UnfollowJournalAsync(Guid journalId)
+    {
+        var currentUserIdStr = _claimService.GetUserId();
+        if (string.IsNullOrEmpty(currentUserIdStr) || !Guid.TryParse(currentUserIdStr, out var currentUserId))
+            throw new UnauthorizedException("User is not authenticated");
+
+        var follow = await _userFollowingJournalRepository.GetFollowAsync(currentUserId, journalId);
+        if (follow == null)
+            throw new NotFoundException("Follow relationship not found");
+
+        await _userFollowingJournalRepository.DeleteAsync(follow);
     }
 }

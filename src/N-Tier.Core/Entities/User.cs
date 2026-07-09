@@ -39,5 +39,7 @@ public partial class User
     public virtual ICollection<UserBookmark> UserBookmarks { get; set; } = new List<UserBookmark>();
 
     public virtual ICollection<UserFollowingTopic> UserFollowingTopics { get; set; } = new List<UserFollowingTopic>();
+
+    public virtual ICollection<UserFollowingJournal> UserFollowingJournals { get; set; } = new List<UserFollowingJournal>();
 }
 

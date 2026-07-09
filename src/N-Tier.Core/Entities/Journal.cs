@@ -68,5 +68,7 @@ public partial class Journal
     public virtual JournalType JournalTypeNavigation { get; set; }
 
     public virtual ICollection<Paper> Papers { get; set; } = new List<Paper>();
+
+    public virtual ICollection<UserFollowingJournal> UserFollowingJournals { get; set; } = new List<UserFollowingJournal>();
 }
 

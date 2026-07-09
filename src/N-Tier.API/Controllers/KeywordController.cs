@@ -13,10 +13,12 @@ namespace N_Tier.API.Controllers;
 public class KeywordController : ApiController
 {
     private readonly DatabaseContext _context;
+    private readonly N_Tier.Application.Services.IKeywordService _keywordService;
 
-    public KeywordController(DatabaseContext context)
+    public KeywordController(DatabaseContext context, N_Tier.Application.Services.IKeywordService keywordService)
     {
         _context = context;
+        _keywordService = keywordService;
     }
 
     /// <summary>
@@ -50,5 +52,25 @@ public class KeywordController : ApiController
             .ToListAsync();
 
         return Ok(ApiResult<List<string>>.Success(keywords));
+    }
+
+    /// <summary>
+    /// Returns a paginated list of keywords.
+    /// </summary>
+    [HttpGet]
+    public async Task<IActionResult> GetKeywordsAsync([FromQuery] N_Tier.Application.Models.Keyword.KeywordPagedRequest request)
+    {
+        var result = await _keywordService.GetPaginatedKeywordsAsync(request);
+        return Ok(ApiResult<N_Tier.Application.Models.PagedResponse<N_Tier.Application.Models.Keyword.KeywordResponseModel>>.Success(result));
+    }
+
+    /// <summary>
+    /// Returns a specific keyword's details.
+    /// </summary>
+    [HttpGet("{id}")]
+    public async Task<IActionResult> GetKeywordByIdAsync([FromRoute] System.Guid id)
+    {
+        var result = await _keywordService.GetKeywordByIdAsync(id);
+        return Ok(ApiResult<N_Tier.Application.Models.Keyword.KeywordResponseModel>.Success(result));
     }
 }
