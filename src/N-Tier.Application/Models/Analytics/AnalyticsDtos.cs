@@ -50,6 +50,16 @@ public class TopicComparisonDto
     public List<YearlyCountDto> YearlyCounts { get; set; } = new();
 }
 
+// GET /api/analytics/topics/available-for-compare
+public class AvailableTopicForCompareDto
+{
+    public Guid TopicId { get; set; }
+    public string TopicName { get; set; }
+    public int PaperCount { get; set; }
+    public int FirstYear { get; set; }
+    public int LastYear { get; set; }
+}
+
 // GET /api/analytics/journals/tracker
 public class JournalTrackerDto
 {
