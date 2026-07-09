@@ -39,11 +39,19 @@ public class SearchService : ISearchService
     {
         var cacheKey = GenerateCacheKey(request);
 
-        var cachedResult = await _cache.GetStringAsync(cacheKey);
-        if (!string.IsNullOrEmpty(cachedResult))
+        // Graceful cache read: if Redis is unavailable, skip cache and query Elasticsearch directly.
+        try
         {
-            _logger.LogInformation("Cache hit for search query: {Query}", request.Q);
-            return JsonConvert.DeserializeObject<SearchPaperResponse>(cachedResult);
+            var cachedResult = await _cache.GetStringAsync(cacheKey);
+            if (!string.IsNullOrEmpty(cachedResult))
+            {
+                _logger.LogInformation("Cache hit for search query: {Query}", request.Q);
+                return JsonConvert.DeserializeObject<SearchPaperResponse>(cachedResult);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Redis cache read failed for key '{CacheKey}'. Falling back to Elasticsearch.", cacheKey);
         }
 
         var mustQueries = new List<Query>();
@@ -287,11 +295,19 @@ public class SearchService : ISearchService
             }).ToList()
         };
 
-        var cacheOptions = new DistributedCacheEntryOptions
+        // Graceful cache write: if Redis is unavailable, log and continue — result is still returned.
+        try
         {
-            AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(15)
-        };
-        await _cache.SetStringAsync(cacheKey, JsonConvert.SerializeObject(response), cacheOptions);
+            var cacheOptions = new DistributedCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(15)
+            };
+            await _cache.SetStringAsync(cacheKey, JsonConvert.SerializeObject(response), cacheOptions);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Redis cache write failed for key '{CacheKey}'. Result was returned but not cached.", cacheKey);
+        }
 
         _logger.LogInformation("Search completed. Total results: {Total}", response.Total);
         return response;
@@ -626,11 +642,18 @@ public class SearchService : ISearchService
     {
         var cacheKey = GenerateAuthorCacheKey(request);
 
-        var cachedResult = await _cache.GetStringAsync(cacheKey);
-        if (!string.IsNullOrEmpty(cachedResult))
+        try
         {
-            _logger.LogInformation("Cache hit for author search query: {Query}", request.Q);
-            return JsonConvert.DeserializeObject<SearchAuthorResponse>(cachedResult);
+            var cachedResult = await _cache.GetStringAsync(cacheKey);
+            if (!string.IsNullOrEmpty(cachedResult))
+            {
+                _logger.LogInformation("Cache hit for author search query: {Query}", request.Q);
+                return JsonConvert.DeserializeObject<SearchAuthorResponse>(cachedResult);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Redis cache read failed for key '{CacheKey}'. Falling back to Elasticsearch.", cacheKey);
         }
 
         var mustQueries = new List<Query>();
@@ -753,11 +776,18 @@ public class SearchService : ISearchService
             }).ToList()
         };
 
-        var cacheOptions = new DistributedCacheEntryOptions
+        try
         {
-            AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(15)
-        };
-        await _cache.SetStringAsync(cacheKey, JsonConvert.SerializeObject(response), cacheOptions);
+            var cacheOptions = new DistributedCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(15)
+            };
+            await _cache.SetStringAsync(cacheKey, JsonConvert.SerializeObject(response), cacheOptions);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Redis cache write failed for key '{CacheKey}'. Result was returned but not cached.", cacheKey);
+        }
 
         _logger.LogInformation("Author search completed. Total results: {Total}", response.Total);
         return response;
