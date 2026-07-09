@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Elastic.Clients.Elasticsearch;
+using Elastic.Clients.Elasticsearch.Aggregations;
 using Elastic.Clients.Elasticsearch.IndexManagement;
 using Elastic.Clients.Elasticsearch.QueryDsl;
 using Microsoft.EntityFrameworkCore;
@@ -107,29 +108,78 @@ public class SearchService : ISearchService
                 },
 
                 // ── Author name ─────────────────────────────────────────────────────────
-                // Searching author → papers by that author rise to top
+                // Three-tier strategy inside DisMax (best score wins):
+                //
+                //  1. MatchPhrasePrefixQuery (boost 12): last word treated as a prefix.
+                //     "Edward Rasm"     → matches "Carl Edward Rasmussen"   ✓ (prefix "Rasm*")
+                //     "Andreas Kaplan"  → matches "Andreas Kaplan"          ✓ (prefix "Kaplan*")
+                //     "Andreas Kaplan"  → does NOT match "Andreas Kamilaris" ✗ ("Kamilaris" ≠ "Kaplan*")
+                //     "Andreas Kaplan"  → does NOT match "Sergey Kaplan"    ✗ ("Sergey" before "Kaplan")
+                //
+                //  2. MatchPhraseQuery slop=1 (boost 10): full phrase, tolerates 1 word gap.
+                //     Handles "Last, First" style name storage.
+                //
+                //  3. MatchQuery AND (boost 6): all full words present, any order.
+                //     Fallback for names stored in different order.
                 new NestedQuery
                 {
                     Path = "authors",
-                    Query = new MatchQuery(new Field("authors.displayName"))
+                    Query = new DisMaxQuery
                     {
-                        Query = request.Q,
-                        Operator = Operator.Or,
-                        Boost = 6.0f,
-                        Fuzziness = new Fuzziness("AUTO")
+                        Queries = new Query[]
+                        {
+                            // Prefix on the last word — supports partial name typing
+                            new MatchPhrasePrefixQuery(new Field("authors.displayName"))
+                            {
+                                Query = request.Q,
+                                Boost = 12.0f,
+                                MaxExpansions = 50   // limit prefix expansions for performance
+                            },
+                            // Exact phrase with slight word-order tolerance
+                            new MatchPhraseQuery(new Field("authors.displayName"))
+                            {
+                                Query = request.Q,
+                                Boost = 10.0f,
+                                Slop = 1
+                            },
+                            // All words present, any order (no fuzzy)
+                            new MatchQuery(new Field("authors.displayName"))
+                            {
+                                Query = request.Q,
+                                Operator = Operator.And,
+                                Boost = 6.0f
+                            }
+                        },
+                        TieBreaker = 0.3
                     }
                 },
 
                 // ── Keyword ─────────────────────────────────────────────────────────────
+                // Strategy: require ALL query words to appear in the keyword name.
+                // Phrase match (boost 8): "deep learning" matches keyword "deep learning" exactly.
+                // AND match (boost 5): all tokens must be in the keyword, any order.
+                // No fuzzy: prevents "kaplan" from fuzzy-matching unrelated keyword tokens.
                 new NestedQuery
                 {
                     Path = "keywords",
-                    Query = new MatchQuery(new Field("keywords.keywordName"))
+                    Query = new DisMaxQuery
                     {
-                        Query = request.Q,
-                        Operator = Operator.Or,
-                        Boost = 5.0f,
-                        Fuzziness = new Fuzziness("AUTO")
+                        Queries = new Query[]
+                        {
+                            new MatchPhraseQuery(new Field("keywords.keywordName"))
+                            {
+                                Query = request.Q,
+                                Boost = 8.0f,
+                                Slop = 0
+                            },
+                            new MatchQuery(new Field("keywords.keywordName"))
+                            {
+                                Query = request.Q,
+                                Operator = Operator.And,
+                                Boost = 5.0f
+                            }
+                        },
+                        TieBreaker = 0.3
                     }
                 },
 
@@ -208,6 +258,68 @@ public class SearchService : ISearchService
             });
         }
 
+        // ── Facet filters (multi-select OR logic: match any of the selected values) ─────
+        // FilterJournal: nested → Terms on .keyword sub-field
+        if (request.FilterJournal?.Count > 0)
+        {
+            mustQueries.Add(new NestedQuery
+            {
+                Path = "journal",
+                Query = new TermsQuery
+                {
+                    Field = new Field("journal.journalName.keyword"),
+                    Terms = new TermsQueryField(
+                        request.FilterJournal.Select(v => FieldValue.String(v)).ToArray()
+                    )
+                }
+            });
+        }
+
+        // FilterAuthor: nested → Terms on .keyword sub-field
+        if (request.FilterAuthor?.Count > 0)
+        {
+            mustQueries.Add(new NestedQuery
+            {
+                Path = "authors",
+                Query = new TermsQuery
+                {
+                    Field = new Field("authors.displayName.keyword"),
+                    Terms = new TermsQueryField(
+                        request.FilterAuthor.Select(v => FieldValue.String(v)).ToArray()
+                    )
+                }
+            });
+        }
+
+        // FilterKeyword: nested → Terms on .keyword sub-field
+        if (request.FilterKeyword?.Count > 0)
+        {
+            mustQueries.Add(new NestedQuery
+            {
+                Path = "keywords",
+                Query = new TermsQuery
+                {
+                    Field = new Field("keywords.keywordName.keyword"),
+                    Terms = new TermsQueryField(
+                        request.FilterKeyword.Select(v => FieldValue.String(v)).ToArray()
+                    )
+                }
+            });
+        }
+
+        // FilterYear: Terms on integer field (publicationYear)
+        if (request.FilterYear?.Count > 0)
+        {
+            mustQueries.Add(new TermsQuery
+            {
+                Field = new Field("publicationYear"),
+                Terms = new TermsQueryField(
+                    request.FilterYear.Select(y => FieldValue.Long(y)).ToArray()
+                )
+            });
+        }
+
+
         var from = (request.Page - 1) * request.Size;
 
         // No search terms → return all documents sorted by citedByCount
@@ -230,10 +342,60 @@ public class SearchService : ISearchService
                 )
             )
             // Sort ONLY by relevance score.
-            // Removing citedByCount secondary sort: a paper with 221k citations should NOT
-            // float above a more relevant result just because it has more citations.
             .Sort(sort => sort
                 .Score(new ScoreSort { Order = SortOrder.Desc })
+            )
+            // ── Facet aggregations ────────────────────────────────────────────────────
+            // These run alongside the search and return counts per value,
+            // used by frontend to render filter dropdowns (OpenAlex-style).
+            .Aggregations(aggs => aggs
+                // Years — simple terms on an integer field
+                .Add("facet_years", a => a
+                    .Terms(t => t
+                        .Field("publicationYear")
+                        .Size(20)
+                        .Order(new List<KeyValuePair<Field, SortOrder>>
+                        {
+                            new KeyValuePair<Field, SortOrder>(new Field("_count"), SortOrder.Desc)
+                        })
+                    )
+                )
+                // Journals — nested agg → inner terms on keyword sub-field
+                .Add("facet_journals", a => a
+                    .Nested(n => n.Path("journal"))
+                    .Aggregations(inner => inner
+                        .Add("journal_names", ia => ia
+                            .Terms(t => t
+                                .Field("journal.journalName.keyword")
+                                .Size(10)
+                            )
+                        )
+                    )
+                )
+                // Authors — nested agg → inner terms
+                .Add("facet_authors", a => a
+                    .Nested(n => n.Path("authors"))
+                    .Aggregations(inner => inner
+                        .Add("author_names", ia => ia
+                            .Terms(t => t
+                                .Field("authors.displayName.keyword")
+                                .Size(10)
+                            )
+                        )
+                    )
+                )
+                // Keywords — nested agg → inner terms
+                .Add("facet_keywords", a => a
+                    .Nested(n => n.Path("keywords"))
+                    .Aggregations(inner => inner
+                        .Add("keyword_names", ia => ia
+                            .Terms(t => t
+                                .Field("keywords.keywordName.keyword")
+                                .Size(10)
+                            )
+                        )
+                    )
+                )
             )
         );
 
@@ -284,6 +446,9 @@ public class SearchService : ISearchService
             }).ToList()
         };
 
+        // ── Parse facet aggregation results ──────────────────────────────────────────
+        response.Facets = ParseFacets(searchResponse.Aggregations);
+
         // Graceful cache write: if Redis is unavailable, log and continue — result is still returned.
         try
         {
@@ -301,6 +466,62 @@ public class SearchService : ISearchService
         _logger.LogInformation("Search completed. Total results: {Total}", response.Total);
         return response;
     }
+
+    /// <summary>
+    /// Parses Elasticsearch aggregation results into a <see cref="SearchFacets"/> object.
+    /// Each nested aggregation follows the pattern: outer NestedAggregate → inner StringTermsAggregate.
+    /// </summary>
+    private static SearchFacets ParseFacets(AggregateDictionary aggs)
+    {
+        if (aggs == null) return new SearchFacets();
+
+        var facets = new SearchFacets();
+
+        // Years — LongTermsAggregate (publicationYear is integer → LongTerms)
+        if (aggs.TryGetValue("facet_years", out var yearsAgg) &&
+            yearsAgg is LongTermsAggregate yearTerms)
+        {
+            facets.Years = yearTerms.Buckets
+                .Select(b => new FacetItem { Value = b.Key.ToString(), Count = b.DocCount })
+                .ToList();
+        }
+
+        // Journals — NestedAggregate → StringTermsAggregate
+        if (aggs.TryGetValue("facet_journals", out var journalsAgg) &&
+            journalsAgg is NestedAggregate journalNested &&
+            journalNested.Aggregations.TryGetValue("journal_names", out var journalInner) &&
+            journalInner is StringTermsAggregate journalTerms)
+        {
+            facets.Journals = journalTerms.Buckets
+                .Select(b => new FacetItem { Value = b.Key.ToString(), Count = b.DocCount })
+                .ToList();
+        }
+
+        // Authors — NestedAggregate → StringTermsAggregate
+        if (aggs.TryGetValue("facet_authors", out var authorsAgg) &&
+            authorsAgg is NestedAggregate authorNested &&
+            authorNested.Aggregations.TryGetValue("author_names", out var authorInner) &&
+            authorInner is StringTermsAggregate authorTerms)
+        {
+            facets.Authors = authorTerms.Buckets
+                .Select(b => new FacetItem { Value = b.Key.ToString(), Count = b.DocCount })
+                .ToList();
+        }
+
+        // Keywords — NestedAggregate → StringTermsAggregate
+        if (aggs.TryGetValue("facet_keywords", out var keywordsAgg) &&
+            keywordsAgg is NestedAggregate keywordNested &&
+            keywordNested.Aggregations.TryGetValue("keyword_names", out var keywordInner) &&
+            keywordInner is StringTermsAggregate keywordTerms)
+        {
+            facets.Keywords = keywordTerms.Buckets
+                .Select(b => new FacetItem { Value = b.Key.ToString(), Count = b.DocCount })
+                .ToList();
+        }
+
+        return facets;
+    }
+
     public async Task IndexPaperAsync(Core.Entities.Paper paper)
     {
         await EnsureAliasExistsAsync(IndexName, false);
@@ -509,14 +730,22 @@ public class SearchService : ISearchService
                     .Nested("journal", n => n
                         .Properties(jp => jp
                             .Keyword("journalId")
-                            .Text("journalName", td => td.Analyzer("standard"))
+                            // journalName.keyword → exact-value sub-field used for terms aggregation
+                            .Text("journalName", td => td
+                                .Analyzer("standard")
+                                .Fields(f => f.Keyword("keyword"))
+                            )
                             .Boolean("isOpenAccess")
                         )
                     )
                     .Nested("authors", n => n
                         .Properties(ap => ap
                             .Keyword("authorId")
-                            .Text("displayName", td => td.Analyzer("standard"))
+                            // displayName.keyword → exact-value sub-field used for terms aggregation
+                            .Text("displayName", td => td
+                                .Analyzer("standard")
+                                .Fields(f => f.Keyword("keyword"))
+                            )
                             .IntegerNumber("citedByCount")
                             .IntegerNumber("hIndex")
                         )
@@ -524,7 +753,11 @@ public class SearchService : ISearchService
                     .Nested("keywords", n => n
                         .Properties(kp => kp
                             .Keyword("keywordId")
-                            .Text("keywordName", td => td.Analyzer("standard"))
+                            // keywordName.keyword → exact-value sub-field used for terms aggregation
+                            .Text("keywordName", td => td
+                                .Analyzer("standard")
+                                .Fields(f => f.Keyword("keyword"))
+                            )
                         )
                     )
                     .Nested("topics", n => n
@@ -623,7 +856,11 @@ public class SearchService : ISearchService
 
     private string GenerateCacheKey(SearchPaperRequest request)
     {
-        return $"search:papers:{request.Q}:{request.Page}:{request.Size}:{request.From}:{request.To}:{request.Language}:{request.IsOpenAccess}";
+        var journals = string.Join(",", request.FilterJournal ?? new());
+        var authors  = string.Join(",", request.FilterAuthor  ?? new());
+        var keywords = string.Join(",", request.FilterKeyword ?? new());
+        var years    = string.Join(",", request.FilterYear    ?? new());
+        return $"search:papers:{request.Q}:{request.Page}:{request.Size}:{request.From}:{request.To}:{request.Language}:{request.IsOpenAccess}:{journals}:{authors}:{keywords}:{years}";
     }
 
 
