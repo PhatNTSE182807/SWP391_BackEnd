@@ -199,6 +199,19 @@ public class AnalyticsController : ApiController
     }
 
     /// <summary>
+    /// Returns only topics that have linked papers, intended for topic comparison dropdowns.
+    /// </summary>
+    [HttpGet("topics/available-for-compare")]
+    public async Task<IActionResult> GetAvailableTopicsForCompareAsync([FromQuery] string q = "", [FromQuery] int size = 300)
+    {
+        if (size <= 0 || size > 1000)
+            return BadRequest(ApiResult<List<AvailableTopicForCompareDto>>.Failure(new[] { "size must be between 1 and 1000." }));
+
+        var result = await _analyticsService.GetAvailableTopicsForCompareAsync(q, size);
+        return Ok(ApiResult<List<AvailableTopicForCompareDto>>.Success(result));
+    }
+
+    /// <summary>
     /// Compares selected research topics by publications, citations, journal coverage, h-index, and yearly counts.
     /// </summary>
     [HttpGet("topics/compare")]

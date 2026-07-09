@@ -1158,10 +1158,21 @@ public class AnalyticsService : IAnalyticsService
     {
         var normalizedKeyword = keyword.Trim().ToLower();
 
-        var keywordEntity = await _context.Keywords
-            .FirstOrDefaultAsync(k => k.NormalizedName.Contains(normalizedKeyword));
+        var exactKeyword = await _context.Keywords
+            .AsNoTracking()
+            .FirstOrDefaultAsync(k => k.NormalizedName == normalizedKeyword);
 
-        if (keywordEntity == null)
+        var matchedKeywordsQuery = _context.Keywords
+            .AsNoTracking()
+            .Where(k => exactKeyword != null
+                ? k.KeywordId == exactKeyword.KeywordId
+                : k.NormalizedName.Contains(normalizedKeyword));
+
+        var matchedKeywords = await matchedKeywordsQuery
+            .Select(k => new { k.KeywordId, k.KeywordName })
+            .ToListAsync();
+
+        if (!matchedKeywords.Any())
         {
             return new KeywordTrendDto
             {
@@ -1175,18 +1186,20 @@ public class AnalyticsService : IAnalyticsService
             .MaxAsync(p => (int?)p.PublicationYear) ?? DateTime.UtcNow.Year;
 
         var startYear = maxYear - years + 1;
+        var keywordIds = matchedKeywords.Select(k => k.KeywordId).ToList();
 
         var papersWithKeyword = await _context.PaperKeywords
             .Include(pk => pk.Paper)
-            .Where(pk => pk.KeywordId == keywordEntity.KeywordId
+            .Where(pk => keywordIds.Contains(pk.KeywordId)
                       && pk.Paper.PublicationYear != null
                       && pk.Paper.PublicationYear >= startYear
                       && pk.Paper.PublicationYear <= maxYear)
-            .Select(pk => pk.Paper.PublicationYear!.Value)
+            .Select(pk => new { pk.PaperId, PublicationYear = pk.Paper.PublicationYear!.Value })
+            .Distinct()
             .ToListAsync();
 
         var yearlyCounts = papersWithKeyword
-            .GroupBy(y => y)
+            .GroupBy(p => p.PublicationYear)
             .Select(g => new YearlyCountDto { Year = g.Key, Count = g.Count() })
             .ToDictionary(x => x.Year, x => x.Count);
 
@@ -1202,7 +1215,7 @@ public class AnalyticsService : IAnalyticsService
 
         return new KeywordTrendDto
         {
-            Keyword = keywordEntity.KeywordName,
+            Keyword = exactKeyword?.KeywordName ?? keyword,
             YearlyCounts = result
         };
     }
@@ -1257,6 +1270,41 @@ public class AnalyticsService : IAnalyticsService
             TopicName = topicEntity.TopicName,
             YearlyCounts = result
         };
+    }
+
+    public async Task<List<AvailableTopicForCompareDto>> GetAvailableTopicsForCompareAsync(string search = "", int size = 300)
+    {
+        var normalizedSearch = search?.Trim().ToLower();
+
+        var query = _context.PaperTopics
+            .AsNoTracking()
+            .Where(pt => pt.Paper.PublicationYear != null);
+
+        if (!string.IsNullOrWhiteSpace(normalizedSearch))
+        {
+            query = query.Where(pt =>
+                pt.Topic.NormalizedName.Contains(normalizedSearch) ||
+                pt.Topic.TopicName.ToLower().Contains(normalizedSearch));
+        }
+
+        return await query
+            .GroupBy(pt => new
+            {
+                pt.TopicId,
+                pt.Topic.TopicName
+            })
+            .Select(g => new AvailableTopicForCompareDto
+            {
+                TopicId = g.Key.TopicId,
+                TopicName = g.Key.TopicName,
+                PaperCount = g.Select(pt => pt.PaperId).Distinct().Count(),
+                FirstYear = g.Min(pt => pt.Paper.PublicationYear!.Value),
+                LastYear = g.Max(pt => pt.Paper.PublicationYear!.Value)
+            })
+            .OrderByDescending(topic => topic.PaperCount)
+            .ThenBy(topic => topic.TopicName)
+            .Take(size)
+            .ToListAsync();
     }
 
     public async Task<List<TopicComparisonDto>> CompareTopicsAsync(List<Guid> topicIds, int years = 5)
