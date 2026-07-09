@@ -1,3 +1,5 @@
+using System.ComponentModel;
+
 namespace N_Tier.Application.Models;
 
 public class PagedRequest
@@ -5,12 +7,14 @@ public class PagedRequest
     private int _page = 1;
     protected int _size = 10;
 
+    [DefaultValue(1)]
     public int Page
     {
         get => _page;
         set => _page = value < 1 ? 1 : value;
     }
 
+    [DefaultValue(10)]
     public virtual int Size
     {
         get => _size;
@@ -25,6 +29,7 @@ public class TopicPagedRequest : PagedRequest
         _size = 100;
     }
 
+    [DefaultValue(100)]
     public override int Size
     {
         get => _size;
@@ -39,6 +44,7 @@ public class JournalPagedRequest : PagedRequest
         _size = 100;
     }
 
+    [DefaultValue(100)]
     public override int Size
     {
         get => _size;
