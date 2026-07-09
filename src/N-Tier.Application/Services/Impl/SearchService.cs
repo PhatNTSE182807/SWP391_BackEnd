@@ -37,7 +37,6 @@ public class SearchService : ISearchService
 
     public async Task<SearchPaperResponse> SearchPapersAsync(SearchPaperRequest request)
     {
-
         var cacheKey = GenerateCacheKey(request);
 
         var cachedResult = await _cache.GetStringAsync(cacheKey);
@@ -49,64 +48,137 @@ public class SearchService : ISearchService
 
         var mustQueries = new List<Query>();
 
-        // Full-text search on title, abstract, doi, journal, author, and keywords
         if (!string.IsNullOrWhiteSpace(request.Q))
         {
-            var shouldQueries = new List<Query>
+            // Strategy: DisMaxQuery picks the BEST matching field score (+ tie_breaker fraction
+            // of remaining matches) instead of summing all field scores.
+            // This prevents weak multi-field matches from beating a single strong field match.
+            //
+            // Example: "deep learning applications"
+            //   • Paper titled "Deep learning applications and challenges..."
+            //       → title phrase match → score × 20  ✓ wins
+            //   • "Deep Residual Learning for Image Recognition" (221k citations)
+            //       → only title-OR matches "deep"+"learning" → score × 2  ✗ loses
+            //
+            // Example: "The MIT Press eBooks"
+            //   • MIT Press papers → journal phrase match → score × 8  ✓ wins
+            //   • Unrelated high-citation papers → no strong field match → small score ✗ loses
+
+            var disMaxQueries = new List<Query>
             {
+                // ── Title: phrase match (strongest signal) ──────────────────────────────
+                // "Deep learning applications" → matches title exactly (slop=1 allows 1 gap)
+                new MatchPhraseQuery(new Field("title"))
+                {
+                    Query = request.Q,
+                    Boost = 20.0f,
+                    Slop = 1
+                },
+
+                // ── Title: all terms present (AND, no fuzzy) ────────────────────────────
+                // All query words must exist in the title, order doesn't matter
                 new MatchQuery(new Field("title"))
                 {
                     Query = request.Q,
+                    Operator = Operator.And,
+                    Boost = 8.0f
+                },
+
+                // ── Title: partial match (OR, minimal fuzziness) ────────────────────────
+                // Fallback: at least some words match; fuzziness=1 (max 1-char edit) to
+                // avoid "MIT" fuzzy-matching short words like "it" or "bit"
+                new MatchQuery(new Field("title"))
+                {
+                    Query = request.Q,
+                    Operator = Operator.Or,
                     Boost = 2.0f,
-                    Fuzziness = new Fuzziness("AUTO")
+                    Fuzziness = new Fuzziness("1")
                 },
-                new MatchQuery(new Field("abstract"))
-                {
-                    Query = request.Q,
-                    Fuzziness = new Fuzziness("AUTO")
-                },
-                new MatchQuery(new Field("doi"))
-                {
-                    Query = request.Q,
-                    Boost = 3.0f // Higher boost for DOI
-                },
-                new NestedQuery
-                {
-                    Path = "journal",
-                    Query = new MatchQuery(new Field("journal.journalName"))
-                    {
-                        Query = request.Q,
-                        Fuzziness = new Fuzziness("AUTO")
-                    }
-                },
+
+                // ── Author name ─────────────────────────────────────────────────────────
+                // Searching author → papers by that author rise to top
                 new NestedQuery
                 {
                     Path = "authors",
                     Query = new MatchQuery(new Field("authors.displayName"))
                     {
                         Query = request.Q,
+                        Operator = Operator.Or,
+                        Boost = 6.0f,
                         Fuzziness = new Fuzziness("AUTO")
                     }
                 },
+
+                // ── Keyword ─────────────────────────────────────────────────────────────
                 new NestedQuery
                 {
                     Path = "keywords",
                     Query = new MatchQuery(new Field("keywords.keywordName"))
                     {
                         Query = request.Q,
+                        Operator = Operator.Or,
+                        Boost = 5.0f,
                         Fuzziness = new Fuzziness("AUTO")
                     }
+                },
+
+                // ── Journal: phrase + AND inside nested ─────────────────────────────────
+                // "The MIT Press eBooks" → must match journal name precisely, not just 1 word.
+                // Phrase gets boost 8, AND-all-terms gets boost 4 — only strong matches win.
+                new NestedQuery
+                {
+                    Path = "journal",
+                    Query = new BoolQuery
+                    {
+                        Should = new Query[]
+                        {
+                            new MatchPhraseQuery(new Field("journal.journalName"))
+                            {
+                                Query = request.Q,
+                                Boost = 8.0f,
+                                Slop = 1
+                            },
+                            new MatchQuery(new Field("journal.journalName"))
+                            {
+                                Query = request.Q,
+                                Operator = Operator.And,
+                                Boost = 4.0f
+                            }
+                        },
+                        MinimumShouldMatch = 1
+                    }
+                },
+
+                // ── DOI ─────────────────────────────────────────────────────────────────
+                new MatchQuery(new Field("doi"))
+                {
+                    Query = request.Q,
+                    Boost = 3.0f
+                },
+
+                // ── Abstract: AND operator, NO fuzzy ────────────────────────────────────
+                // All query words must appear in abstract.
+                // No fuzzy: prevents "MIT" from matching "it", "bit", etc. in long abstracts
+                // which would artificially inflate scores for unrelated papers.
+                new MatchQuery(new Field("abstract"))
+                {
+                    Query = request.Q,
+                    Operator = Operator.And,
+                    Boost = 1.0f
                 }
             };
 
-            mustQueries.Add(new BoolQuery
+            // DisMax: take the highest-scoring field as the primary score.
+            // tie_breaker=0.3 adds 30% of other matching fields — matching more fields
+            // is slightly better than one, but never enough to beat a stronger single match.
+            mustQueries.Add(new DisMaxQuery
             {
-                Should = shouldQueries.ToArray(),
-                MinimumShouldMatch = 1
+                Queries = disMaxQueries.ToArray(),
+                TieBreaker = 0.3
             });
         }
 
-        // Year range filter - now works with integer type
+        // ── Filters ─────────────────────────────────────────────────────────────────────
         if (request.From.HasValue || request.To.HasValue)
         {
             mustQueries.Add(new NumberRangeQuery(new Field("publicationYear"))
@@ -134,16 +206,16 @@ public class SearchService : ISearchService
 
         var from = (request.Page - 1) * request.Size;
 
+        // No search terms → return all documents sorted by citedByCount
+        Query finalQuery = mustQueries.Any()
+            ? new BoolQuery { Must = mustQueries.ToArray() }
+            : new MatchAllQuery();
 
         var searchResponse = await _elasticClient.SearchAsync<PaperDocument>(s => s
             .Index(IndexName)
             .From(from)
             .Size(request.Size)
-            .Query(q => q
-                .Bool(b => b
-                    .Must(mustQueries.ToArray())
-                )
-            )
+            .Query(finalQuery)
             .Highlight(h => h
                 .Fields(f => f
                     .Add("title", hf => hf
@@ -158,9 +230,11 @@ public class SearchService : ISearchService
                     )
                 )
             )
+            // Sort ONLY by relevance score.
+            // Removing citedByCount secondary sort: a paper with 221k citations should NOT
+            // float above a more relevant result just because it has more citations.
             .Sort(sort => sort
                 .Score(new ScoreSort { Order = SortOrder.Desc })
-                .Field("citedByCount", new FieldSort { Order = SortOrder.Desc })
             )
         );
 
@@ -170,21 +244,36 @@ public class SearchService : ISearchService
             throw new Exception($"Search failed: {searchResponse.ElasticsearchServerError?.Error?.Reason}");
         }
 
+        var totalPages = request.Size > 0
+            ? (int)Math.Ceiling((double)searchResponse.Total / request.Size)
+            : 0;
+
         var response = new SearchPaperResponse
         {
             Total = searchResponse.Total,
             Page = request.Page,
             Size = request.Size,
-            Results = searchResponse.Documents.Select((doc, index) =>
+            TotalPages = totalPages,
+            Results = searchResponse.Hits.Select(hit =>
             {
-                var hit = searchResponse.Hits.ElementAt(index);
+                var doc = hit.Source;
                 return new SearchPaperResultItem
                 {
                     PaperId = doc.PaperId,
                     Title = doc.Title,
                     Abstract = doc.Abstract,
+                    Doi = doc.Doi,
                     PublicationYear = doc.PublicationYear,
                     CitedByCount = doc.CitedByCount,
+                    JournalName = doc.Journal?.JournalName,
+                    Authors = doc.Authors?
+                        .Where(a => !string.IsNullOrEmpty(a.DisplayName))
+                        .Select(a => a.DisplayName)
+                        .ToList() ?? new List<string>(),
+                    Keywords = doc.Keywords?
+                        .Where(k => !string.IsNullOrEmpty(k.KeywordName))
+                        .Select(k => k.KeywordName)
+                        .ToList() ?? new List<string>(),
                     Highlight = new SearchHighlight
                     {
                         Title = hit.Highlight?.TryGetValue("title", out var titleHighlights) == true
@@ -207,10 +296,10 @@ public class SearchService : ISearchService
         _logger.LogInformation("Search completed. Total results: {Total}", response.Total);
         return response;
     }
-
     public async Task IndexPaperAsync(Core.Entities.Paper paper)
     {
         await EnsureAliasExistsAsync(IndexName, false);
+
 
         var paperWithIncludes = await _context.Papers
             .Include(p => p.Journal)
@@ -531,6 +620,7 @@ public class SearchService : ISearchService
     {
         return $"search:papers:{request.Q}:{request.Page}:{request.Size}:{request.From}:{request.To}:{request.Language}:{request.IsOpenAccess}";
     }
+
 
     public async Task<SearchAuthorResponse> SearchAuthorsAsync(SearchAuthorRequest request)
     {
