@@ -74,7 +74,7 @@ public class JournalService : IJournalService
         return true;
     }
 
-    public async Task<PagedResponse<JournalResponseModel>> GetPaginatedJournalsAsync(PagedRequest request)
+    public async Task<PagedResponse<JournalResponseModel>> GetPaginatedJournalsAsync(JournalPagedRequest request)
     {
         var version = await GetCacheVersionAsync("journals");
         var cacheKey = $"journals:v:{version}:page:{request.Page}:size:{request.Size}";

@@ -3,7 +3,7 @@ namespace N_Tier.Application.Models;
 public class PagedRequest
 {
     private int _page = 1;
-    private int _size = 10;
+    protected int _size = 10;
 
     public int Page
     {
@@ -11,9 +11,37 @@ public class PagedRequest
         set => _page = value < 1 ? 1 : value;
     }
 
-    public int Size
+    public virtual int Size
     {
         get => _size;
         set => _size = value < 1 ? 10 : (value > 100 ? 100 : value);
+    }
+}
+
+public class TopicPagedRequest : PagedRequest
+{
+    public TopicPagedRequest()
+    {
+        _size = 100;
+    }
+
+    public override int Size
+    {
+        get => _size;
+        set => _size = value < 1 ? 100 : (value > 100 ? 100 : value);
+    }
+}
+
+public class JournalPagedRequest : PagedRequest
+{
+    public JournalPagedRequest()
+    {
+        _size = 100;
+    }
+
+    public override int Size
+    {
+        get => _size;
+        set => _size = value < 1 ? 100 : (value > 100 ? 100 : value);
     }
 }

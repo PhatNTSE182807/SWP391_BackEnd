@@ -1,6 +1,7 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using N_Tier.Application.Models;
 using N_Tier.Application.Models.User;
 
 namespace N_Tier.Application.Services;
@@ -9,6 +10,7 @@ public interface IUserService
 {
 
     Task<List<UserResponseModel>> GetAllUsersAsync();
+    Task<PagedResponse<UserResponseModel>> GetPaginatedUsersAsync(PagedRequest request);
 
 
 

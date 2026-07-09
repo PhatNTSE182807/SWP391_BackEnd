@@ -77,4 +77,18 @@ public class CoreUserRepository : BaseRepository<User>, ICoreUserRepository
             .Include(u => u.Role)
             .FirstOrDefaultAsync(u => u.UserId == userId);
     }
+
+    public async Task<(IEnumerable<User> Results, int TotalCount)> GetPaginatedAsync(int page, int size)
+    {
+        var total = await DbSet.CountAsync(u => !u.IsDeleted);
+        var results = await DbSet
+            .Include(u => u.Role)
+            .Where(u => !u.IsDeleted)
+            .OrderBy(u => u.Username)
+            .Skip((page - 1) * size)
+            .Take(size)
+            .ToListAsync();
+
+        return (results, total);
+    }
 }

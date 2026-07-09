@@ -270,7 +270,7 @@ public class SearchService : ISearchService
 
         await CreateIndexAsync(newIndexName);
 
-        var batchSize = 1000;
+        var batchSize = 100;
         var skip = 0;
         var totalIndexed = 0;
 
@@ -716,7 +716,7 @@ public class SearchService : ISearchService
 
         await CreateAuthorIndexAsync(newIndexName);
 
-        var batchSize = 1000;
+        var batchSize = 100;
         var skip = 0;
         var totalIndexed = 0;
 

@@ -13,5 +13,5 @@ public interface IJournalService
     Task<JournalResponseModel> CreateAsync(CreateJournalModel model);
     Task<JournalResponseModel> UpdateAsync(Guid id, UpdateJournalModel model);
     Task<bool> DeleteAsync(Guid id);
-    Task<PagedResponse<JournalResponseModel>> GetPaginatedJournalsAsync(PagedRequest request);
+    Task<PagedResponse<JournalResponseModel>> GetPaginatedJournalsAsync(JournalPagedRequest request);
 }

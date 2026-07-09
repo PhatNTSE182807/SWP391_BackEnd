@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -13,14 +13,14 @@ namespace N_Tier.API.Controllers;
 public class AdminController(IUserService userService) : ApiController
 {
     /// <summary>
-    /// Lấy danh sách tất cả users (username, email, phone, role, isActive).
+    /// Lấy danh sách tất cả users (username, email, phone, role, isActive) (paginated).
     /// Chỉ dành cho System Administrator.
     /// </summary>
     [HttpGet("users")]
-    public async Task<IActionResult> GetAllUsersAsync()
+    public async Task<IActionResult> GetAllUsersAsync([FromQuery] PagedRequest request)
     {
-        var users = await userService.GetAllUsersAsync();
-        return Ok(ApiResult<object>.Success(users));
+        var users = await userService.GetPaginatedUsersAsync(request);
+        return Ok(ApiResult<PagedResponse<UserResponseModel>>.Success(users));
     }
 
     /// <summary>

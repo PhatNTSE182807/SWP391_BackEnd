@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using N_Tier.Application.Exceptions;
+using N_Tier.Application.Models;
 using N_Tier.Application.Models.User;
 using N_Tier.DataAccess.Repositories;
 using N_Tier.Shared.Helpers;
@@ -33,6 +34,23 @@ public class UserService : IUserService
         _paperRepository = paperRepository;
         _topicRepository = topicRepository;
         _claimService = claimService;
+    }
+
+    public async Task<PagedResponse<UserResponseModel>> GetPaginatedUsersAsync(PagedRequest request)
+    {
+        var (results, total) = await _coreUserRepository.GetPaginatedAsync(request.Page, request.Size);
+        var mappedResults = results.Select(u => new UserResponseModel
+        {
+            UserId      = u.UserId,
+            Username    = u.Username,
+            Email       = u.Email,
+            Phonenumber = u.Phonenumber,
+            RoleName    = u.Role?.RoleName,
+            IsActive    = u.IsActive,
+            CreatedAt   = u.CreatedAt
+        }).ToList();
+
+        return new PagedResponse<UserResponseModel>(mappedResults, total, request.Page, request.Size);
     }
 
     public async Task<List<UserResponseModel>> GetAllUsersAsync()

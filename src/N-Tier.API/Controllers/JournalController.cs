@@ -23,7 +23,7 @@ namespace N_Tier.API.Controllers
         /// Get all journals (paginated)
         /// </summary>
         [HttpGet]
-        public async Task<IActionResult> GetAllAsync([FromQuery] PagedRequest request)
+        public async Task<IActionResult> GetAllAsync([FromQuery] JournalPagedRequest request)
         {
             var result = await _journalService.GetPaginatedJournalsAsync(request);
             return Ok(ApiResult<PagedResponse<JournalResponseModel>>.Success(result));
