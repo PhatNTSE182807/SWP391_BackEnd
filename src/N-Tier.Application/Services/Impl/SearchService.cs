@@ -92,15 +92,18 @@ public class SearchService : ISearchService
                     Boost = 8.0f
                 },
 
-                // ── Title: partial match (OR, minimal fuzziness) ────────────────────────
-                // Fallback: at least some words match; fuzziness=1 (max 1-char edit) to
-                // avoid "MIT" fuzzy-matching short words like "it" or "bit"
+                // ── Title: partial match (OR, minimal fuzziness) ────────────────────────────
+                // Fallback: at least some words match.
+                // AUTO:4,7 → only terms with ≥4 chars are eligible for fuzzy matching
+                //   (edit-distance 1 for 4-6 chars, edit-distance 2 for 7+ chars).
+                // This prevents 3-char queries like "nyt" from fuzzy-matching "Net"
+                // (which is only 1 edit away) and returning completely unrelated papers.
                 new MatchQuery(new Field("title"))
                 {
                     Query = request.Q,
                     Operator = Operator.Or,
                     Boost = 2.0f,
-                    Fuzziness = new Fuzziness("1")
+                    Fuzziness = new Fuzziness("AUTO:4,7")
                 },
 
                 // ── Author name ─────────────────────────────────────────────────────────
@@ -162,18 +165,11 @@ public class SearchService : ISearchService
                 {
                     Query = request.Q,
                     Boost = 3.0f
-                },
-
-                // ── Abstract: AND operator, NO fuzzy ────────────────────────────────────
-                // All query words must appear in abstract.
-                // No fuzzy: prevents "MIT" from matching "it", "bit", etc. in long abstracts
-                // which would artificially inflate scores for unrelated papers.
-                new MatchQuery(new Field("abstract"))
-                {
-                    Query = request.Q,
-                    Operator = Operator.And,
-                    Boost = 1.0f
                 }
+                // NOTE: Abstract is intentionally excluded from search fields.
+                // Searching abstract causes false positives for short/abbreviation queries
+                // (e.g. "NY" matching "Riverhead, NY" in unrelated papers).
+                // Search scope: title, authors, keywords, journal, DOI only.
             };
 
             // DisMax: take the highest-scoring field as the primary score.
@@ -230,12 +226,7 @@ public class SearchService : ISearchService
                         .PreTags(new[] { "<em>" })
                         .PostTags(new[] { "</em>" })
                     )
-                    .Add("abstract", hf => hf
-                        .PreTags(new[] { "<em>" })
-                        .PostTags(new[] { "</em>" })
-                        .FragmentSize(150)
-                        .NumberOfFragments(3)
-                    )
+                    // Abstract highlight removed: abstract is not a search field.
                 )
             )
             // Sort ONLY by relevance score.
@@ -286,10 +277,8 @@ public class SearchService : ISearchService
                     {
                         Title = hit.Highlight?.TryGetValue("title", out var titleHighlights) == true
                             ? titleHighlights.ToList()
-                            : new List<string>(),
-                        Abstract = hit.Highlight?.TryGetValue("abstract", out var abstractHighlights) == true
-                            ? abstractHighlights.ToList()
                             : new List<string>()
+                        // Abstract highlight removed: abstract is not a search field.
                     }
                 };
             }).ToList()

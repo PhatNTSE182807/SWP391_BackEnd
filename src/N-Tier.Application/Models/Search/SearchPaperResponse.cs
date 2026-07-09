@@ -29,6 +29,7 @@ public class SearchPaperResultItem
 public class SearchHighlight
 {
     public List<string> Title { get; set; } = new();
-    public List<string> Abstract { get; set; } = new();
+    // Abstract highlight removed: abstract is not a search field.
+    // The Abstract field in SearchPaperResultItem still returns full abstract text for display.
 }
 
