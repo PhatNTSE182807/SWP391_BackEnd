@@ -1,9 +1,15 @@
-﻿
+
+
+using System;
+using System.Collections.Generic;
+using N_Tier.Application.Models.AuthorSourceMapping;
+using N_Tier.Application.Models.PaperAuthor;
 
 namespace N_Tier.Application.Models.Author
 {
-    public class AuthorResponseModel : BaseResponseModel
+    public class AuthorResponseModel
     {
+        public Guid AuthorId { get; set; }
 
         public string DisplayName { get; set; }
 
@@ -28,5 +34,10 @@ namespace N_Tier.Application.Models.Author
         public DateTime CreatedAt { get; set; }
 
         public DateTime? UpdatedAt { get; set; }
+
+        public virtual ICollection<AuthorSourceMappingResponseModel> AuthorSourceMappings { get; set; } = new List<AuthorSourceMappingResponseModel>();
+
+        public virtual ICollection<PaperAuthorResponseModel> PaperAuthors { get; set; } = new List<PaperAuthorResponseModel>();
+
     }
 }

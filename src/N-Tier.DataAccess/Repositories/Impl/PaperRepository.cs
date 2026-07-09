@@ -12,9 +12,18 @@ public class PaperRepository : BaseRepository<Paper>, IPaperRepository
     {
         var paper = await Context.Papers
             .AsNoTracking()
+            .AsSplitQuery()
             .Include(p => p.Journal)
             .Include(p => p.PaperAuthors)
                 .ThenInclude(pa => pa.Author)
+            .Include(p => p.PaperTopics)
+                .ThenInclude(pt => pt.Topic)
+            .Include(p => p.PaperKeywords)
+                .ThenInclude(pk => pk.Keyword)
+            .Include(p => p.PaperSourceMappings)
+            .Include(p => p.UserBookmarks)
+                .ThenInclude(ub => ub.User)
+                    .ThenInclude(u => u.Role)
             .FirstOrDefaultAsync(p => p.PaperId == id);
 
         if (paper == null)
@@ -27,11 +36,20 @@ public class PaperRepository : BaseRepository<Paper>, IPaperRepository
     {
        var paper = await Context.Papers
             .AsNoTracking()
+            .AsSplitQuery()
             .Include(j => j.Journal)
             .Include(p => p.PaperAuthors)
                 .ThenInclude(a => a.Author)
-                .Where(pa => pa.PaperAuthors.Any(pa => pa.AuthorId == authorId))
-                .ToListAsync();     
+            .Include(p => p.PaperTopics)
+                .ThenInclude(pt => pt.Topic)
+            .Include(p => p.PaperKeywords)
+                .ThenInclude(pk => pk.Keyword)
+            .Include(p => p.PaperSourceMappings)
+            .Include(p => p.UserBookmarks)
+                .ThenInclude(ub => ub.User)
+                    .ThenInclude(u => u.Role)
+            .Where(pa => pa.PaperAuthors.Any(pa => pa.AuthorId == authorId))
+            .ToListAsync();     
         return paper;
     }
 
@@ -40,9 +58,18 @@ public class PaperRepository : BaseRepository<Paper>, IPaperRepository
         var total = await Context.Papers.CountAsync();
         var results = await Context.Papers
             .AsNoTracking()
+            .AsSplitQuery()
             .Include(p => p.Journal)
             .Include(p => p.PaperAuthors)
                 .ThenInclude(pa => pa.Author)
+            .Include(p => p.PaperTopics)
+                .ThenInclude(pt => pt.Topic)
+            .Include(p => p.PaperKeywords)
+                .ThenInclude(pk => pk.Keyword)
+            .Include(p => p.PaperSourceMappings)
+            .Include(p => p.UserBookmarks)
+                .ThenInclude(ub => ub.User)
+                    .ThenInclude(u => u.Role)
             .OrderBy(p => p.Title)
             .Skip((page - 1) * size)
             .Take(size)

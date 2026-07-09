@@ -9,7 +9,7 @@ namespace N_Tier.Application.MappingProfiles
         public void Register(TypeAdapterConfig config)
         {
             config.NewConfig<ResearchTopic, TopicResponseModel>()
-                .Map(dest => dest.Id, src => src.TopicId);
+                .Map(dest => dest.TopicId, src => src.TopicId);
         }
     }
 }

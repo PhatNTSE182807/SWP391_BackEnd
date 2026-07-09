@@ -22,4 +22,5 @@ public interface ICoreUserRepository : IBaseRepository<User>
     Task<List<User>> GetAllUsersWithRoleAsync();
     Task<User> GetUserByIdAsync(Guid userId);
     Task<User> GetDeletedUserByEmailAsync(string email);
+    Task<(IEnumerable<User> Results, int TotalCount)> GetPaginatedAsync(int page, int size);
 }

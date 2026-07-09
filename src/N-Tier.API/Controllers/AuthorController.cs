@@ -20,13 +20,13 @@ public class AuthorController : ApiController
     }
 
     /// <summary>
-    /// Get all authors from database
+    /// Get all authors from database (paginated)
     /// </summary>
     [HttpGet]
-    public async Task<IActionResult> GetAllAsync()
+    public async Task<IActionResult> GetAllAsync([FromQuery] PagedRequest request)
     {
-        var result = await _authorService.GetAllAuthorsAsync();
-        return Ok(ApiResult<List<AuthorResponseModel>>.Success(result));
+        var result = await _authorService.GetPaginatedAuthorsAsync(request);
+        return Ok(ApiResult<PagedResponse<AuthorResponseModel>>.Success(result));
     }
 
     /// <summary>

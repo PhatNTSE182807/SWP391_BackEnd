@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -9,8 +9,10 @@ using N_Tier.Core.Entities;
 
 namespace N_Tier.Application.Models.PaperAuthor
 {
-    public class PaperAuthorResponseModel : BaseResponseModel
+    public class PaperAuthorResponseModel
     {
+        public Guid PaperAuthorId { get; set; }
+
         public Guid AuthorId { get; set; }
 
         public int? AuthorOrder { get; set; }
@@ -24,6 +26,8 @@ namespace N_Tier.Application.Models.PaperAuthor
         public DateTime CreatedAt { get; set; }
 
         public virtual AuthorResponseModel Author { get; set; }
+
+        public virtual PaperResponseModel Paper { get; set; }
 
     }
 }

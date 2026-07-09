@@ -13,6 +13,8 @@ using N_Tier.DataAccess;
 using N_Tier.DataAccess.Persistence;
 using StackExchange.Redis;
 
+using System.Text.Json.Serialization;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // HttpClient for external API calls
@@ -70,7 +72,11 @@ builder.Services.AddHangfireServer(options =>
 
 builder.Services.AddControllers(
     config => config.Filters.Add(typeof(ValidateModelAttribute))
-);
+).AddJsonOptions(options =>
+{
+    options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
+    options.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+});
 
 builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddValidatorsFromAssemblyContaining(typeof(IValidationsMarker));
@@ -100,7 +106,7 @@ builder.Services.AddSwaggerGen(options =>
 builder.Services.AddHttpContextAccessor();
 
 builder.Services.AddDataAccess(builder.Configuration)
-    .AddApplication(builder.Environment);
+    .AddApplication(builder.Environment, builder.Configuration);
 
 builder.Services.AddJwt(builder.Configuration);
 
@@ -146,9 +152,9 @@ app.UseAuthorization();
 
 app.UseMiddleware<PerformanceMiddleware>();
 
-app.UseMiddleware<TransactionMiddleware>();
-
 app.UseMiddleware<ExceptionHandlingMiddleware>();
+
+app.UseMiddleware<TransactionMiddleware>();
 
 app.MapControllers();
 

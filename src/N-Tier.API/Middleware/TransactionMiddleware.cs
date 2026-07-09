@@ -1,4 +1,4 @@
-﻿using N_Tier.DataAccess.Persistence;
+using N_Tier.DataAccess.Persistence;
 
 namespace N_Tier.API.Middleware;
 
@@ -8,6 +8,12 @@ public class TransactionMiddleware(RequestDelegate next, ILogger<TransactionMidd
 
     public async Task Invoke(HttpContext context, DatabaseContext databaseContext)
     {
+        if (context.Request.Method.Equals("GET", StringComparison.OrdinalIgnoreCase))
+        {
+            await next(context);
+            return;
+        }
+
         await using var transaction = await databaseContext.Database.BeginTransactionAsync();
 
         try
@@ -16,9 +22,10 @@ public class TransactionMiddleware(RequestDelegate next, ILogger<TransactionMidd
 
             await transaction.CommitAsync();
         }
-        catch
+        catch (Exception ex)
         {
             await transaction.RollbackAsync();
+            throw;
         }
     }
 }

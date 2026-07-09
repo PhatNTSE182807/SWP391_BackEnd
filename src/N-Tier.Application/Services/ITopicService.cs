@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using N_Tier.Application.Models;
 using N_Tier.Application.Models.Topic;
 
 namespace N_Tier.Application.Services
@@ -9,5 +10,6 @@ namespace N_Tier.Application.Services
     {
         Task<List<TopicResponseModel>> GetAllTopicsAsync();
         Task<TopicResponseModel> GetTopicByIdAsync(Guid id);
+        Task<PagedResponse<TopicResponseModel>> GetPaginatedTopicsAsync(TopicPagedRequest request);
     }
 }

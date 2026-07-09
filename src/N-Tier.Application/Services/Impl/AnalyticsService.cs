@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -64,7 +64,7 @@ public class AnalyticsService : IAnalyticsService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Exception in GetPaperCountByYearAsync while querying Elasticsearch");
+            _logger.LogError(ex, "[Analytics] ES Error in GetPaperCountByYearAsync");
             return new List<ChartDataPoint>();
         }
     }
@@ -164,7 +164,7 @@ public class AnalyticsService : IAnalyticsService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Exception in GetTopTopicsAsync while querying Elasticsearch");
+            _logger.LogError(ex, "[Analytics] ES Error in GetTopTopicsAsync");
             return new List<ChartDataPoint>();
         }
     }
