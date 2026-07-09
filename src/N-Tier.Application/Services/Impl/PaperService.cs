@@ -20,7 +20,8 @@ namespace N_Tier.Application.Services.Impl
 
         private static readonly JsonSerializerOptions _jsonOptions = new()
         {
-            ReferenceHandler = ReferenceHandler.IgnoreCycles
+            ReferenceHandler = ReferenceHandler.IgnoreCycles,
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
         };
 
         public PaperService(IPaperRepository paperRepository, IDistributedCache cache)

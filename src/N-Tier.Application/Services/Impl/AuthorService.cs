@@ -18,7 +18,8 @@ public class AuthorService : IAuthorService
 
     private static readonly JsonSerializerOptions _jsonOptions = new()
     {
-        ReferenceHandler = ReferenceHandler.IgnoreCycles
+        ReferenceHandler = ReferenceHandler.IgnoreCycles,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 
     public AuthorService(IAuthorRepository authorRepository, IDistributedCache cache)

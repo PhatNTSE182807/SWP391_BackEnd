@@ -19,7 +19,8 @@ public class JournalService : IJournalService
 
     private static readonly JsonSerializerOptions _jsonOptions = new()
     {
-        ReferenceHandler = ReferenceHandler.IgnoreCycles
+        ReferenceHandler = ReferenceHandler.IgnoreCycles,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 
     public JournalService(IJournalRepository journalRepository, IDistributedCache cache)
