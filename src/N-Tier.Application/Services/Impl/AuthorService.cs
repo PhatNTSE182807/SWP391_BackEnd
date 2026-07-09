@@ -7,6 +7,7 @@ using N_Tier.Application.Models.Author;
 using N_Tier.DataAccess.Repositories;
 using Microsoft.Extensions.Caching.Distributed;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace N_Tier.Application.Services.Impl;
 
@@ -14,6 +15,11 @@ public class AuthorService : IAuthorService
 {
     private readonly IAuthorRepository _authorRepository;
     private readonly IDistributedCache _cache;
+
+    private static readonly JsonSerializerOptions _jsonOptions = new()
+    {
+        ReferenceHandler = ReferenceHandler.IgnoreCycles
+    };
 
     public AuthorService(IAuthorRepository authorRepository, IDistributedCache cache)
     {
@@ -41,7 +47,7 @@ public class AuthorService : IAuthorService
         var cachedData = await _cache.GetStringAsync(cacheKey);
         if (!string.IsNullOrEmpty(cachedData))
         {
-            return JsonSerializer.Deserialize<PagedResponse<AuthorResponseModel>>(cachedData);
+            return JsonSerializer.Deserialize<PagedResponse<AuthorResponseModel>>(cachedData, _jsonOptions);
         }
 
         var (results, total) = await _authorRepository.GetPaginatedAsync(request.Page, request.Size);
@@ -52,7 +58,7 @@ public class AuthorService : IAuthorService
         {
             AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10)
         };
-        await _cache.SetStringAsync(cacheKey, JsonSerializer.Serialize(response), cacheOptions);
+        await _cache.SetStringAsync(cacheKey, JsonSerializer.Serialize(response, _jsonOptions), cacheOptions);
 
         return response;
     }

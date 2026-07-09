@@ -8,6 +8,7 @@ using N_Tier.Core.Entities;
 using N_Tier.DataAccess.Repositories;
 using Microsoft.Extensions.Caching.Distributed;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace N_Tier.Application.Services.Impl;
 
@@ -15,6 +16,11 @@ public class JournalService : IJournalService
 {
     private readonly IJournalRepository _journalRepository;
     private readonly IDistributedCache _cache;
+
+    private static readonly JsonSerializerOptions _jsonOptions = new()
+    {
+        ReferenceHandler = ReferenceHandler.IgnoreCycles
+    };
 
     public JournalService(IJournalRepository journalRepository, IDistributedCache cache)
     {
@@ -75,7 +81,7 @@ public class JournalService : IJournalService
         var cachedData = await _cache.GetStringAsync(cacheKey);
         if (!string.IsNullOrEmpty(cachedData))
         {
-            return JsonSerializer.Deserialize<PagedResponse<JournalResponseModel>>(cachedData);
+            return JsonSerializer.Deserialize<PagedResponse<JournalResponseModel>>(cachedData, _jsonOptions);
         }
 
         var (results, total) = await _journalRepository.GetPaginatedAsync(request.Page, request.Size);
@@ -86,7 +92,7 @@ public class JournalService : IJournalService
         {
             AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10)
         };
-        await _cache.SetStringAsync(cacheKey, JsonSerializer.Serialize(response), cacheOptions);
+        await _cache.SetStringAsync(cacheKey, JsonSerializer.Serialize(response, _jsonOptions), cacheOptions);
 
         return response;
     }

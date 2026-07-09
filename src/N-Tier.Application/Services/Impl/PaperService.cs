@@ -9,6 +9,7 @@ using N_Tier.Application.Models.Paper;
 using N_Tier.DataAccess.Repositories;
 using Microsoft.Extensions.Caching.Distributed;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace N_Tier.Application.Services.Impl
 {
@@ -16,6 +17,11 @@ namespace N_Tier.Application.Services.Impl
     {
         private readonly IPaperRepository _paperRepository;
         private readonly IDistributedCache _cache;
+
+        private static readonly JsonSerializerOptions _jsonOptions = new()
+        {
+            ReferenceHandler = ReferenceHandler.IgnoreCycles
+        };
 
         public PaperService(IPaperRepository paperRepository, IDistributedCache cache)
         {
@@ -37,14 +43,14 @@ namespace N_Tier.Application.Services.Impl
             var cachedData = await _cache.GetStringAsync(cacheKey);
             if (!string.IsNullOrEmpty(cachedData))
             {
-                return JsonSerializer.Deserialize<PagedResponse<PaperResponseModel>>(cachedData);
+                return JsonSerializer.Deserialize<PagedResponse<PaperResponseModel>>(cachedData, _jsonOptions);
             }
 
             var (results, total) = await _paperRepository.GetPaginatedAsync(request.Page, request.Size);
             var mappedResults = results.Adapt<List<PaperResponseModel>>();
             var response = new PagedResponse<PaperResponseModel>(mappedResults, total, request.Page, request.Size);
 
-            await _cache.SetStringAsync(cacheKey, JsonSerializer.Serialize(response), new DistributedCacheEntryOptions
+            await _cache.SetStringAsync(cacheKey, JsonSerializer.Serialize(response, _jsonOptions), new DistributedCacheEntryOptions
             {
                 AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10)
             });
@@ -69,13 +75,13 @@ namespace N_Tier.Application.Services.Impl
             var cachedData = await _cache.GetStringAsync(cacheKey);
             if (!string.IsNullOrEmpty(cachedData))
             {
-                return JsonSerializer.Deserialize<PaperResponseModel>(cachedData);
+                return JsonSerializer.Deserialize<PaperResponseModel>(cachedData, _jsonOptions);
             }
 
             var paper = await _paperRepository.GetByIdAsync(id);
             var response = paper.Adapt<PaperResponseModel>();
 
-            await _cache.SetStringAsync(cacheKey, JsonSerializer.Serialize(response), new DistributedCacheEntryOptions
+            await _cache.SetStringAsync(cacheKey, JsonSerializer.Serialize(response, _jsonOptions), new DistributedCacheEntryOptions
             {
                 AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(15)
             });

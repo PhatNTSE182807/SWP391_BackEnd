@@ -13,6 +13,8 @@ using N_Tier.DataAccess;
 using N_Tier.DataAccess.Persistence;
 using StackExchange.Redis;
 
+using System.Text.Json.Serialization;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // HttpClient for external API calls
@@ -70,7 +72,10 @@ builder.Services.AddHangfireServer(options =>
 
 builder.Services.AddControllers(
     config => config.Filters.Add(typeof(ValidateModelAttribute))
-);
+).AddJsonOptions(options =>
+{
+    options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
+});
 
 builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddValidatorsFromAssemblyContaining(typeof(IValidationsMarker));
