@@ -34,6 +34,7 @@ public interface IAnalyticsService
     // Keyword & Topic Trends (EF Core)
     Task<KeywordTrendDto> GetKeywordTrendsAsync(string keyword, int years = 5);
     Task<TopicTrendDto> GetTopicTrendsAsync(string topic, int years = 5);
+    Task<List<AvailableTopicForCompareDto>> GetAvailableTopicsForCompareAsync(string search = "", int size = 300);
     Task<List<TopicComparisonDto>> CompareTopicsAsync(List<Guid> topicIds, int years = 5);
     Task<IEnumerable<TrendingTopicDto>> GetTrendingTopicsAsync(int years = 1, int topCount = 10);
 
