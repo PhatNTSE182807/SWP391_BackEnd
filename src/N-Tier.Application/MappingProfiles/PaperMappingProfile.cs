@@ -36,8 +36,16 @@ namespace N_Tier.Application.MappingProfiles
                     AuthorId = pa.AuthorId,
                     AuthorName = pa.Author.DisplayName ?? pa.Author.FullName ?? pa.RawAuthorName
                 }))
-                .Map(dest => dest.PaperTopics, src => src.PaperTopics)
-                .Map(dest => dest.PaperKeywords, src => src.PaperKeywords)
+                .Map(dest => dest.PaperTopics, src => src.PaperTopics.Select(pt => new PaperTopicSummaryResponseModel
+                {
+                    TopicId = pt.TopicId,
+                    TopicName = pt.Topic.TopicName
+                }))
+                .Map(dest => dest.PaperKeywords, src => src.PaperKeywords.Select(pk => new PaperKeywordSummaryResponseModel
+                {
+                    KeywordId = pk.KeywordId,
+                    KeywordName = pk.Keyword.KeywordName
+                }))
                 .Map(dest => dest.UserBookmarks, src => src.UserBookmarks);
 
             config.NewConfig<Journal, JournalResponseModel>()

@@ -3,8 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using N_Tier.Application.Models.PaperKeyword;
-using N_Tier.Application.Models.PaperTopic;
 using N_Tier.Application.Models.UserBookmark;
 
 namespace N_Tier.Application.Models.Paper
@@ -51,9 +49,9 @@ namespace N_Tier.Application.Models.Paper
 
         public virtual ICollection<PaperAuthorSummaryResponseModel> PaperAuthors { get; set; } = new List<PaperAuthorSummaryResponseModel>();
 
-        public virtual ICollection<PaperTopicResponseModel> PaperTopics { get; set; } = new List<PaperTopicResponseModel>();
+        public virtual ICollection<PaperTopicSummaryResponseModel> PaperTopics { get; set; } = new List<PaperTopicSummaryResponseModel>();
 
-        public virtual ICollection<PaperKeywordResponseModel> PaperKeywords { get; set; } = new List<PaperKeywordResponseModel>();
+        public virtual ICollection<PaperKeywordSummaryResponseModel> PaperKeywords { get; set; } = new List<PaperKeywordSummaryResponseModel>();
 
         public virtual ICollection<UserBookmarkResponseModel> UserBookmarks { get; set; } = new List<UserBookmarkResponseModel>();
 
@@ -71,5 +69,19 @@ namespace N_Tier.Application.Models.Paper
         public Guid AuthorId { get; set; }
 
         public string AuthorName { get; set; }
+    }
+
+    public class PaperTopicSummaryResponseModel
+    {
+        public Guid TopicId { get; set; }
+
+        public string TopicName { get; set; }
+    }
+
+    public class PaperKeywordSummaryResponseModel
+    {
+        public Guid KeywordId { get; set; }
+
+        public string KeywordName { get; set; }
     }
 }
