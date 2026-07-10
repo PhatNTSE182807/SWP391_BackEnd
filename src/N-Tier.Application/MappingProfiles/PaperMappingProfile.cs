@@ -26,72 +26,15 @@ namespace N_Tier.Application.MappingProfiles
         {
             config.NewConfig<Paper, PaperResponseModel>()
                 .Map(dest => dest.PaperId, src => src.PaperId)
-                .Map(dest => dest.Journal, src => src.Journal != null ? new JournalResponseModel
+                .Map(dest => dest.Journal, src => src.Journal != null ? new PaperJournalSummaryResponseModel
                 {
                     JournalId = src.Journal.JournalId,
-                    JournalName = src.Journal.JournalName,
-                    NormalizedName = src.Journal.NormalizedName,
-                    IssnL = src.Journal.IssnL,
-                    IssnPrint = src.Journal.IssnPrint,
-                    IssnElectronic = src.Journal.IssnElectronic,
-                    Publisher = src.Journal.Publisher,
-                    HostOrganizationName = src.Journal.HostOrganizationName,
-                    JournalType = src.Journal.JournalType,
-                    JournalTypeId = src.Journal.JournalTypeId,
-                    HomepageUrl = src.Journal.HomepageUrl,
-                    CountryCode = src.Journal.CountryCode,
-                    WorksCount = src.Journal.WorksCount,
-                    CitedByCount = src.Journal.CitedByCount,
-                    OaWorksCount = src.Journal.OaWorksCount,
-                    HIndex = src.Journal.HIndex,
-                    I10Index = src.Journal.I10Index,
-                    TwoYearMeanCitedness = src.Journal.TwoYearMeanCitedness,
-                    IsOpenAccess = src.Journal.IsOpenAccess,
-                    IsInDoaj = src.Journal.IsInDoaj,
-                    IsCore = src.Journal.IsCore,
-                    FirstPublicationYear = src.Journal.FirstPublicationYear,
-                    LastPublicationYear = src.Journal.LastPublicationYear,
-                    CountsByYear = src.Journal.CountsByYear,
-                    SourceCreatedDate = src.Journal.SourceCreatedDate,
-                    SourceUpdatedDate = src.Journal.SourceUpdatedDate,
-                    CreatedAt = src.Journal.CreatedAt,
-                    UpdatedAt = src.Journal.UpdatedAt
+                    JournalName = src.Journal.JournalName
                 } : null)
-                .Map(dest => dest.PaperAuthors, src => src.PaperAuthors.Select(pa => new PaperAuthorResponseModel
+                .Map(dest => dest.PaperAuthors, src => src.PaperAuthors.Select(pa => new PaperAuthorSummaryResponseModel
                 {
-                    PaperAuthorId = pa.PaperAuthorId,
                     AuthorId = pa.AuthorId,
-                    AuthorOrder = pa.AuthorOrder,
-                    AuthorPosition = pa.AuthorPosition,
-                    RawAuthorName = pa.RawAuthorName,
-                    IsCorresponding = pa.IsCorresponding,
-                    CreatedAt = pa.CreatedAt,
-                    Author = new AuthorResponseModel
-                    {
-                        AuthorId = pa.Author.AuthorId,
-                        DisplayName = pa.Author.DisplayName,
-                        NormalizedName = pa.Author.NormalizedName,
-                        FullName = pa.Author.FullName,
-                        Orcid = pa.Author.Orcid,
-                        WorksCount = pa.Author.WorksCount,
-                        CitedByCount = pa.Author.CitedByCount,
-                        HIndex = pa.Author.HIndex,
-                        I10Index = pa.Author.I10Index,
-                        TwoYearMeanCitedness = pa.Author.TwoYearMeanCitedness,
-                        RawAuthorNames = pa.Author.RawAuthorNames,
-                        DisplayNameAlternatives = pa.Author.DisplayNameAlternatives,
-                        Affiliations = pa.Author.Affiliations,
-                        LastKnownInstitutions = pa.Author.LastKnownInstitutions,
-                        Topics = pa.Author.Topics,
-                        TopicShare = pa.Author.TopicShare,
-                        XConcepts = pa.Author.XConcepts,
-                        CountsByYear = pa.Author.CountsByYear,
-                        WorksApiUrl = pa.Author.WorksApiUrl,
-                        SourceCreatedDate = pa.Author.SourceCreatedDate,
-                        SourceUpdatedDate = pa.Author.SourceUpdatedDate,
-                        CreatedAt = pa.Author.CreatedAt,
-                        UpdatedAt = pa.Author.UpdatedAt
-                    }
+                    AuthorName = pa.Author.DisplayName ?? pa.Author.FullName ?? pa.RawAuthorName
                 }))
                 .Map(dest => dest.PaperTopics, src => src.PaperTopics)
                 .Map(dest => dest.PaperKeywords, src => src.PaperKeywords)
@@ -121,41 +64,10 @@ namespace N_Tier.Application.MappingProfiles
                     JournalId = p.JournalId,
                     CreatedAt = p.CreatedAt,
                     UpdatedAt = p.UpdatedAt,
-                    PaperAuthors = p.PaperAuthors.Select(pa => new PaperAuthorResponseModel
+                    PaperAuthors = p.PaperAuthors.Select(pa => new PaperAuthorSummaryResponseModel
                     {
-                        PaperAuthorId = pa.PaperAuthorId,
                         AuthorId = pa.AuthorId,
-                        AuthorOrder = pa.AuthorOrder,
-                        AuthorPosition = pa.AuthorPosition,
-                        RawAuthorName = pa.RawAuthorName,
-                        IsCorresponding = pa.IsCorresponding,
-                        CreatedAt = pa.CreatedAt,
-                        Author = new AuthorResponseModel
-                        {
-                            AuthorId = pa.Author.AuthorId,
-                            DisplayName = pa.Author.DisplayName,
-                            NormalizedName = pa.Author.NormalizedName,
-                            FullName = pa.Author.FullName,
-                            Orcid = pa.Author.Orcid,
-                            WorksCount = pa.Author.WorksCount,
-                            CitedByCount = pa.Author.CitedByCount,
-                            HIndex = pa.Author.HIndex,
-                            I10Index = pa.Author.I10Index,
-                            TwoYearMeanCitedness = pa.Author.TwoYearMeanCitedness,
-                            RawAuthorNames = pa.Author.RawAuthorNames,
-                            DisplayNameAlternatives = pa.Author.DisplayNameAlternatives,
-                            Affiliations = pa.Author.Affiliations,
-                            LastKnownInstitutions = pa.Author.LastKnownInstitutions,
-                            Topics = pa.Author.Topics,
-                            TopicShare = pa.Author.TopicShare,
-                            XConcepts = pa.Author.XConcepts,
-                            CountsByYear = pa.Author.CountsByYear,
-                            WorksApiUrl = pa.Author.WorksApiUrl,
-                            SourceCreatedDate = pa.Author.SourceCreatedDate,
-                            SourceUpdatedDate = pa.Author.SourceUpdatedDate,
-                            CreatedAt = pa.Author.CreatedAt,
-                            UpdatedAt = pa.Author.UpdatedAt
-                        }
+                        AuthorName = pa.Author.DisplayName ?? pa.Author.FullName ?? pa.RawAuthorName
                     }).ToList()
                 }));
 
@@ -195,36 +107,10 @@ namespace N_Tier.Application.MappingProfiles
                         JournalId = pa.Paper.JournalId,
                         CreatedAt = pa.Paper.CreatedAt,
                         UpdatedAt = pa.Paper.UpdatedAt,
-                        Journal = pa.Paper.Journal != null ? new JournalResponseModel
+                        Journal = pa.Paper.Journal != null ? new PaperJournalSummaryResponseModel
                         {
                             JournalId = pa.Paper.Journal.JournalId,
-                            JournalName = pa.Paper.Journal.JournalName,
-                            NormalizedName = pa.Paper.Journal.NormalizedName,
-                            IssnL = pa.Paper.Journal.IssnL,
-                            IssnPrint = pa.Paper.Journal.IssnPrint,
-                            IssnElectronic = pa.Paper.Journal.IssnElectronic,
-                            Publisher = pa.Paper.Journal.Publisher,
-                            HostOrganizationName = pa.Paper.Journal.HostOrganizationName,
-                            JournalType = pa.Paper.Journal.JournalType,
-                            JournalTypeId = pa.Paper.Journal.JournalTypeId,
-                            HomepageUrl = pa.Paper.Journal.HomepageUrl,
-                            CountryCode = pa.Paper.Journal.CountryCode,
-                            WorksCount = pa.Paper.Journal.WorksCount,
-                            CitedByCount = pa.Paper.Journal.CitedByCount,
-                            OaWorksCount = pa.Paper.Journal.OaWorksCount,
-                            HIndex = pa.Paper.Journal.HIndex,
-                            I10Index = pa.Paper.Journal.I10Index,
-                            TwoYearMeanCitedness = pa.Paper.Journal.TwoYearMeanCitedness,
-                            IsOpenAccess = pa.Paper.Journal.IsOpenAccess,
-                            IsInDoaj = pa.Paper.Journal.IsInDoaj,
-                            IsCore = pa.Paper.Journal.IsCore,
-                            FirstPublicationYear = pa.Paper.Journal.FirstPublicationYear,
-                            LastPublicationYear = pa.Paper.Journal.LastPublicationYear,
-                            CountsByYear = pa.Paper.Journal.CountsByYear,
-                            SourceCreatedDate = pa.Paper.Journal.SourceCreatedDate,
-                            SourceUpdatedDate = pa.Paper.Journal.SourceUpdatedDate,
-                            CreatedAt = pa.Paper.Journal.CreatedAt,
-                            UpdatedAt = pa.Paper.Journal.UpdatedAt
+                            JournalName = pa.Paper.Journal.JournalName
                         } : null
                     }
                 }));
