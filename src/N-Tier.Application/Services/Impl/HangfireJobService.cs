@@ -18,25 +18,27 @@ public class HangfireJobService : IHangfireJobService
 
     public void ScheduleRecurringJobs()
     {
-        // Clean up old 5-minute jobs if they exist in the DB
+        // Clean up old jobs if they exist in the DB
         RecurringJob.RemoveIfExists("reindex-papers-every-5min");
         RecurringJob.RemoveIfExists("reindex-authors-every-5min");
+        RecurringJob.RemoveIfExists("reindex-papers-weekly");
+        RecurringJob.RemoveIfExists("reindex-authors-weekly");
 
-        // Reindex papers weekly (every Sunday at midnight)
+        // Reindex papers every 5 days
         RecurringJob.AddOrUpdate(
-            "reindex-papers-weekly",
+            "reindex-papers-every-5days",
             () => ReindexPapersAsync(),
-            Cron.Weekly()
+            "0 0 */5 * *"
         );
 
-        // Reindex authors weekly (every Sunday at midnight)
+        // Reindex authors every 5 days
         RecurringJob.AddOrUpdate(
-            "reindex-authors-weekly",
+            "reindex-authors-every-5days",
             () => ReindexAuthorsAsync(),
-            Cron.Weekly()
+            "0 0 */5 * *"
         );
 
-        _logger.LogInformation("Recurring jobs scheduled successfully - Reindex papers and authors weekly");
+        _logger.LogInformation("Recurring jobs scheduled successfully - Reindex papers and authors every 5 days");
     }
 
     [AutomaticRetry(Attempts = 3)]
