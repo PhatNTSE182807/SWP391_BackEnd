@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using N_Tier.Application.Models.Journal;
 using N_Tier.Application.Models.PaperAuthor;
 using N_Tier.Application.Models.PaperKeyword;
-using N_Tier.Application.Models.PaperSourceMapping;
 using N_Tier.Application.Models.PaperTopic;
 using N_Tier.Application.Models.UserBookmark;
 using N_Tier.Core.Entities;
@@ -58,8 +57,6 @@ namespace N_Tier.Application.Models.Paper
         public virtual ICollection<PaperTopicResponseModel> PaperTopics { get; set; } = new List<PaperTopicResponseModel>();
 
         public virtual ICollection<PaperKeywordResponseModel> PaperKeywords { get; set; } = new List<PaperKeywordResponseModel>();
-
-        public virtual ICollection<PaperSourceMappingResponseModel> PaperSourceMappings { get; set; } = new List<PaperSourceMappingResponseModel>();
 
         public virtual ICollection<UserBookmarkResponseModel> UserBookmarks { get; set; } = new List<UserBookmarkResponseModel>();
 
