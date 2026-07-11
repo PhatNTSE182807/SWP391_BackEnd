@@ -246,7 +246,7 @@ public class AnalyticsService : IAnalyticsService
                                 .Aggregations(subSub => subSub
                                     .Add("keyword_buckets", t2 => t2
                                         .Terms(t3 => t3
-                                            .Field("keywords.keywordName")
+                                            .Field("keywords.keywordName.keyword")
                                             .Size(1000)
                                         )
                                     )
@@ -326,7 +326,7 @@ public class AnalyticsService : IAnalyticsService
                         .Aggregations(sub => sub
                             .Add("author_buckets", t => t
                                 .Terms(terms => terms
-                                    .Field("authors.displayName")
+                                    .Field("authors.displayName.keyword")
                                     .Size(size)
                                     .Order(new[] { KeyValuePair.Create<Field, SortOrder>("sum_citations", SortOrder.Desc) })
                                 )
@@ -382,7 +382,7 @@ public class AnalyticsService : IAnalyticsService
                         .Aggregations(sub => sub
                             .Add("author_buckets", t => t
                                 .Terms(terms => terms
-                                    .Field("authors.displayName")
+                                    .Field("authors.displayName.keyword")
                                     .Size(size)
                                     .Order(new[] { KeyValuePair.Create<Field, SortOrder>("max_hindex", SortOrder.Desc) })
                                 )
@@ -438,7 +438,7 @@ public class AnalyticsService : IAnalyticsService
                         .Aggregations(sub => sub
                             .Add("author_buckets", t => t
                                 .Terms(terms => terms
-                                    .Field("authors.displayName")
+                                    .Field("authors.displayName.keyword")
                                     .Size(size)
                                 )
                                 .Aggregations(subSub => subSub
@@ -447,7 +447,7 @@ public class AnalyticsService : IAnalyticsService
                                         .Aggregations(subSubSub => subSubSub
                                             .Add("coauthor_buckets", t2 => t2
                                                 .Terms(terms2 => terms2
-                                                    .Field("authors.displayName")
+                                                    .Field("authors.displayName.keyword")
                                                     .Size(10)
                                                 )
                                             )
@@ -560,7 +560,7 @@ public class AnalyticsService : IAnalyticsService
                         .Aggregations(sub => sub
                             .Add("top_journals", t => t
                                 .Terms(terms => terms
-                                    .Field("journal.journalName")
+                                    .Field("journal.journalName.keyword")
                                     .Size(size)
                                 )
                             )
@@ -609,12 +609,17 @@ public class AnalyticsService : IAnalyticsService
                         .Aggregations(sub => sub
                             .Add("top_journals", t => t
                                 .Terms(terms => terms
-                                    .Field("journal.journalName")
+                                    .Field("journal.journalName.keyword")
                                     .Size(size)
-                                    .Order(new[] { KeyValuePair.Create<Field, SortOrder>("sum_citations", SortOrder.Desc) })
+                                    .Order(new[] { KeyValuePair.Create<Field, SortOrder>("rev_citations > sum_citations", SortOrder.Desc) })
                                 )
                                 .Aggregations(subSub => subSub
-                                    .Add("sum_citations", sumAgg => sumAgg.Sum(sum => sum.Field("citedByCount")))
+                                    .Add("rev_citations", rev => rev
+                                        .ReverseNested(rn => { })
+                                        .Aggregations(parentSub => parentSub
+                                            .Add("sum_citations", sumAgg => sumAgg.Sum(sum => sum.Field("citedByCount")))
+                                        )
+                                    )
                                 )
                             )
                         )
@@ -636,7 +641,8 @@ public class AnalyticsService : IAnalyticsService
 
             return terms.Buckets
                 .Select(b => {
-                    var sumVal = b.Aggregations.GetSum("sum_citations")?.Value ?? 0;
+                    var revNested = b.Aggregations.GetReverseNested("rev_citations");
+                    var sumVal = revNested?.Aggregations.GetSum("sum_citations")?.Value ?? 0;
                     return new ChartDataPoint
                     {
                         Key = b.Key.ToString(),
@@ -675,19 +681,38 @@ public class AnalyticsService : IAnalyticsService
             }
 
             var terms = response.Aggregations.GetStringTerms("open_access");
-            if (terms == null) return new List<ChartDataPoint>();
+            if (terms != null)
+            {
+                return terms.Buckets
+                    .Select(b => {
+                        var isOa = b.Key.ToString();
+                        var label = isOa == "1" || isOa == "true" ? "Open Access" : "Closed";
+                        return new ChartDataPoint
+                        {
+                            Key = label,
+                            Value = b.DocCount
+                        };
+                    })
+                    .ToList();
+            }
 
-            return terms.Buckets
-                .Select(b => {
-                    var isOa = b.Key.ToString();
-                    var label = isOa == "1" || isOa == "true" ? "Open Access" : "Closed";
-                    return new ChartDataPoint
-                    {
-                        Key = label,
-                        Value = b.DocCount
-                    };
-                })
-                .ToList();
+            var longTerms = response.Aggregations.GetLongTerms("open_access");
+            if (longTerms != null)
+            {
+                return longTerms.Buckets
+                    .Select(b => {
+                        var isOa = b.Key.ToString();
+                        var label = isOa == "1" || isOa == "true" ? "Open Access" : "Closed";
+                        return new ChartDataPoint
+                        {
+                            Key = label,
+                            Value = b.DocCount
+                        };
+                    })
+                    .ToList();
+            }
+
+            return new List<ChartDataPoint>();
         }
         catch (Exception ex)
         {
@@ -821,7 +846,7 @@ public class AnalyticsService : IAnalyticsService
                         .Aggregations(sub => sub
                             .Add("top_keywords", subAgg => subAgg
                                 .Terms(t => t
-                                    .Field("keywords.keywordName")
+                                    .Field("keywords.keywordName.keyword")
                                     .Size(size)
                                 )
                             )
@@ -880,7 +905,7 @@ public class AnalyticsService : IAnalyticsService
                             .Aggregations(subSub => subSub
                                 .Add("keyword_buckets", t2 => t2
                                     .Terms(t3 => t3
-                                        .Field("keywords.keywordName")
+                                        .Field("keywords.keywordName.keyword")
                                         .Size(100)
                                     )
                                 )
@@ -956,7 +981,7 @@ public class AnalyticsService : IAnalyticsService
                     .Aggregations(sub => sub
                         .Add("keyword_buckets", t => t
                             .Terms(terms => terms
-                                .Field("keywords.keywordName")
+                                .Field("keywords.keywordName.keyword")
                                 .Size(size)
                             )
                             .Aggregations(subSub => subSub
@@ -965,7 +990,7 @@ public class AnalyticsService : IAnalyticsService
                                     .Aggregations(subSubSub => subSubSub
                                         .Add("co_buckets", t2 => t2
                                             .Terms(terms2 => terms2
-                                                .Field("keywords.keywordName")
+                                                .Field("keywords.keywordName.keyword")
                                                 .Size(10)
                                             )
                                         )
