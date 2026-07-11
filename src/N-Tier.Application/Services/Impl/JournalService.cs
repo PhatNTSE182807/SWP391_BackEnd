@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Mapster;
 using N_Tier.Application.Models;
@@ -38,7 +39,21 @@ public class JournalService : IJournalService
     public async Task<JournalResponseModel> GetByIdAsync(Guid id)
     {
         var entity = await _journalRepository.GetByIdAsync(id);
-        return entity.Adapt<JournalResponseModel>();
+        var model = entity.Adapt<JournalResponseModel>();
+
+        // Flatten JournalTopics → Topics with TopicName
+        model.Topics = entity.JournalTopics?
+            .Select(jt => new JournalTopicSimpleModel
+            {
+                JournalTopicId = jt.JournalTopicId,
+                TopicId = jt.TopicId,
+                TopicName = jt.Topic?.TopicName,
+                WorksCount = jt.WorksCount,
+                TopicShare = jt.TopicShare
+            })
+            .ToList() ?? new List<JournalTopicSimpleModel>();
+
+        return model;
     }
 
     public async Task<JournalResponseModel> CreateAsync(CreateJournalModel model)

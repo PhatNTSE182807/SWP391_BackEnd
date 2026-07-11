@@ -50,7 +50,14 @@ namespace N_Tier.Application.MappingProfiles
 
             config.NewConfig<Journal, JournalResponseModel>()
                 .Map(dest => dest.JournalId, src => src.JournalId)
-                .Map(dest => dest.JournalTopics, src => src.JournalTopics)
+                .Map(dest => dest.Topics, src => src.JournalTopics.Select(jt => new JournalTopicSimpleModel
+                {
+                    JournalTopicId = jt.JournalTopicId,
+                    TopicId = jt.TopicId,
+                    TopicName = jt.Topic != null ? jt.Topic.TopicName : null,
+                    WorksCount = jt.WorksCount,
+                    TopicShare = jt.TopicShare
+                }))
                 .Map(dest => dest.JournalTypeNavigation, src => src.JournalTypeNavigation)
                 .Map(dest => dest.Papers, src => src.Papers.Select(p => new PaperResponseModel
                 {

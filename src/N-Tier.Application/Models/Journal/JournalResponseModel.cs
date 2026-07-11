@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using N_Tier.Application.Models.JournalTopic;
 using N_Tier.Application.Models.JournalType;
 using N_Tier.Application.Models.Paper;
 
@@ -38,6 +37,15 @@ public class JournalResponseModel
     public DateTime? UpdatedAt { get; set; }
 
     public virtual JournalTypeResponseModel JournalTypeNavigation { get; set; }
-    public virtual ICollection<JournalTopicResponseModel> JournalTopics { get; set; } = new List<JournalTopicResponseModel>();
+    public virtual ICollection<JournalTopicSimpleModel> Topics { get; set; } = new List<JournalTopicSimpleModel>();
     public virtual ICollection<PaperResponseModel> Papers { get; set; } = new List<PaperResponseModel>();
+}
+
+public class JournalTopicSimpleModel
+{
+    public Guid JournalTopicId { get; set; }
+    public Guid TopicId { get; set; }
+    public string TopicName { get; set; }
+    public int? WorksCount { get; set; }
+    public decimal? TopicShare { get; set; }
 }
