@@ -586,8 +586,8 @@ public class SearchService : ISearchService
 
         await CreateIndexAsync(newIndexName);
 
-        var batchSize = 1000;
-        var skip = 0;
+        var batchSize = 2000;
+        var lastPaperId = Guid.Empty;
         var totalIndexed = 0;
 
         while (true)
@@ -602,8 +602,8 @@ public class SearchService : ISearchService
                             .ThenInclude(f => f.Domain)
                 .AsNoTracking()
                 .AsSplitQuery()
+                .Where(p => p.PaperId.CompareTo(lastPaperId) > 0)
                 .OrderBy(p => p.PaperId)
-                .Skip(skip)
                 .Take(batchSize)
                 .ToListAsync();
 
@@ -612,9 +612,11 @@ public class SearchService : ISearchService
 
             var documents = papers.Select(MapToDocument).ToList();
 
+            // Refresh.False = do NOT refresh after each batch; much faster.
+            // We do a single manual refresh after all batches complete.
             var bulkResponse = await _elasticClient.BulkAsync(b => b
                 .Index(newIndexName)
-                .Refresh(Refresh.WaitFor)
+                .Refresh(Refresh.False)
                 .IndexMany(documents, (descriptor, doc) =>
                     descriptor.Id(doc.PaperId.ToString()))
             );
@@ -629,11 +631,14 @@ public class SearchService : ISearchService
                 throw new Exception($"Bulk indexing failed: {errorMessage}");
             }
 
+            lastPaperId = papers.Last().PaperId;
             totalIndexed += papers.Count;
-            skip += batchSize;
 
             _logger.LogInformation("Indexed {Count} papers. Total: {Total}", papers.Count, totalIndexed);
         }
+
+        // Force a single refresh after all batches — makes all docs searchable at once
+        await _elasticClient.Indices.RefreshAsync(newIndexName);
 
         var oldIndices = new List<string>();
         var getAliasResponse = await _elasticClient.Indices.GetAliasAsync(g => g.Name(aliasName));
