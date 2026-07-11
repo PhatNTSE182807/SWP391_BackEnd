@@ -536,6 +536,7 @@ public class SearchService : ISearchService
                     .ThenInclude(sf => sf.Field)
                         .ThenInclude(f => f.Domain)
             .AsNoTracking()
+            .AsSplitQuery()
             .FirstOrDefaultAsync(p => p.PaperId == paper.PaperId);
 
         if (paperWithIncludes == null)
@@ -585,7 +586,7 @@ public class SearchService : ISearchService
 
         await CreateIndexAsync(newIndexName);
 
-        var batchSize = 100;
+        var batchSize = 1000;
         var skip = 0;
         var totalIndexed = 0;
 
@@ -600,6 +601,7 @@ public class SearchService : ISearchService
                         .ThenInclude(sf => sf.Field)
                             .ThenInclude(f => f.Domain)
                 .AsNoTracking()
+                .AsSplitQuery()
                 .OrderBy(p => p.PaperId)
                 .Skip(skip)
                 .Take(batchSize)

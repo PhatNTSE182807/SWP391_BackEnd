@@ -280,19 +280,39 @@ app.MapGet("/swagger-custom.js", async context =>
     ");
 });
 
-// Schedule Hangfire recurring jobs after app is fully configured
+// Schedule recurring jobs + auto-reindex on startup if Elasticsearch index is empty
 try
 {
-    using (var jobScope = app.Services.CreateScope())
+    using (var esScope = app.Services.CreateScope())
     {
-        var hangfireJobService = jobScope.ServiceProvider.GetRequiredService<N_Tier.Application.Services.IHangfireJobService>();
+        var elasticClient = esScope.ServiceProvider.GetRequiredService<Elastic.Clients.Elasticsearch.ElasticsearchClient>();
+        var hangfireJobService = esScope.ServiceProvider.GetRequiredService<N_Tier.Application.Services.IHangfireJobService>();
+        var startupLogger = esScope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+
+        // 1. Register recurring scheduled jobs (every 5 days)
         hangfireJobService.ScheduleRecurringJobs();
+
+        // 2. Check if papers index has data; reindex automatically if empty
+        var countResponse = await elasticClient.CountAsync(c => c.Index("papers"));
+        var paperCount = countResponse.IsValidResponse ? countResponse.Count : 0;
+
+        if (paperCount == 0)
+        {
+            startupLogger.LogWarning("Elasticsearch 'papers' index is empty (count={Count}). Triggering auto-reindex in background...", paperCount);
+            hangfireJobService.EnqueueReindexJob();
+            hangfireJobService.EnqueueReindexAuthorsJob();
+            startupLogger.LogInformation("Auto-reindex jobs enqueued. Analytics APIs will return data shortly.");
+        }
+        else
+        {
+            startupLogger.LogInformation("Elasticsearch 'papers' index has {Count} documents. No reindex needed.", paperCount);
+        }
     }
 }
 catch (Exception ex)
 {
-    var logger = app.Services.GetRequiredService<ILogger<Program>>();
-    logger.LogWarning(ex, "Failed to schedule Hangfire recurring jobs on startup. Jobs can be scheduled manually via API.");
+    var startupLogger = app.Services.GetRequiredService<ILogger<Program>>();
+    startupLogger.LogWarning(ex, "Could not initialize Hangfire jobs or check Elasticsearch on startup. Jobs can be scheduled manually via API.");
 }
 
 app.Run();
