@@ -194,22 +194,37 @@ public class DashboardService : IDashboardService
                 });
             }
 
-            // Calculate Growth Percentage between end (latest year) and start (starting year)
+            // Calculate Average Growth Percentage over all step intervals
+            double totalIntervalGrowth = 0;
+            int intervalCount = targetYears.Count - 1;
+
+            if (intervalCount > 0)
+            {
+                for (int i = 0; i < intervalCount; i++)
+                {
+                    double startCount = yearlyCounts[i].Count;
+                    double endCount = yearlyCounts[i + 1].Count;
+
+                    double intervalGrowth = 0;
+                    if (startCount > 0)
+                    {
+                        intervalGrowth = (endCount - startCount) / startCount * 100;
+                    }
+                    else if (endCount > 0)
+                    {
+                        intervalGrowth = 100.0;
+                    }
+                    
+                    totalIntervalGrowth += intervalGrowth;
+                }
+            }
+
+            double averageGrowthPercentage = intervalCount > 0
+                ? Math.Round(totalIntervalGrowth / intervalCount, 1)
+                : 0;
+
             var currentYearCount = paperTopicsQuery
                 .Count(pt => pt.TopicId == topTopic.TopicId && pt.PublicationYear == end);
-
-            var startYearCount = paperTopicsQuery
-                .Count(pt => pt.TopicId == topTopic.TopicId && pt.PublicationYear == start);
-
-            double growth = 0;
-            if (startYearCount > 0)
-            {
-                growth = Math.Round((double)(currentYearCount - startYearCount) / startYearCount * 100, 1);
-            }
-            else if (currentYearCount > 0)
-            {
-                growth = 100.0;
-            }
 
             // Calculate TotalPercentage: topic's total publications in selected range / overall sum of top topics in range
             double totalPercentage = overallTotalCount > 0
@@ -220,7 +235,7 @@ public class DashboardService : IDashboardService
             {
                 TopicName = topicName,
                 PaperCount = currentYearCount,
-                GrowthPercentage = growth,
+                AverageGrowthPercentage = averageGrowthPercentage,
                 TotalPercentage = totalPercentage,
                 YearlyCounts = yearlyCounts
             });
