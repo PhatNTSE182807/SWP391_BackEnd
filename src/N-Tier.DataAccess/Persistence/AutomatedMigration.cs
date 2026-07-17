@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -10,7 +10,7 @@ public static class AutomatedMigration
     {
         var context = services.GetRequiredService<DatabaseContext>();
 
-        if (context.Database.IsSqlServer()) await context.Database.MigrateAsync();
+        if (context.Database.IsSqlServer()) await context.Database.MigrateAsync(); 
 
         await DatabaseContextSeed.SeedDatabaseAsync(context);
     }

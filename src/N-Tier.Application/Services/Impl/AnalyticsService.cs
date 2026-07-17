@@ -1206,12 +1206,14 @@ public class AnalyticsService : IAnalyticsService
             };
         }
 
-        var maxYear = await _context.Papers
-            .Where(p => p.PublicationYear != null)
-            .MaxAsync(p => (int?)p.PublicationYear) ?? DateTime.UtcNow.Year;
+        var keywordIds = matchedKeywords.Select(k => k.KeywordId).ToList();
+
+        var maxYear = await _context.PaperKeywords
+            .Where(pk => keywordIds.Contains(pk.KeywordId) && pk.Paper.PublicationYear != null)
+            .MaxAsync(pk => (int?)pk.Paper.PublicationYear) ?? DateTime.UtcNow.Year;
 
         var startYear = maxYear - years + 1;
-        var keywordIds = matchedKeywords.Select(k => k.KeywordId).ToList();
+
 
         var papersWithKeyword = await _context.PaperKeywords
             .Include(pk => pk.Paper)
@@ -1249,10 +1251,21 @@ public class AnalyticsService : IAnalyticsService
     {
         var normalizedTopic = topic.Trim().ToLower();
 
-        var topicEntity = await _context.ResearchTopics
-            .FirstOrDefaultAsync(t => t.NormalizedName.Contains(normalizedTopic));
+        var exactTopic = await _context.ResearchTopics
+            .AsNoTracking()
+            .FirstOrDefaultAsync(t => t.NormalizedName == normalizedTopic);
 
-        if (topicEntity == null)
+        var matchedTopicsQuery = _context.ResearchTopics
+            .AsNoTracking()
+            .Where(t => exactTopic != null
+                ? t.TopicId == exactTopic.TopicId
+                : t.NormalizedName.Contains(normalizedTopic));
+
+        var matchedTopics = await matchedTopicsQuery
+            .Select(t => new { t.TopicId, t.TopicName })
+            .ToListAsync();
+
+        if (!matchedTopics.Any())
         {
             return new TopicTrendDto
             {
@@ -1261,24 +1274,28 @@ public class AnalyticsService : IAnalyticsService
             };
         }
 
-        var maxYear = await _context.Papers
-            .Where(p => p.PublicationYear != null)
-            .MaxAsync(p => (int?)p.PublicationYear) ?? DateTime.UtcNow.Year;
+        var topicIds = matchedTopics.Select(t => t.TopicId).ToList();
+
+        var maxYear = await _context.PaperTopics
+            .Where(pt => topicIds.Contains(pt.TopicId) && pt.Paper.PublicationYear != null)
+            .MaxAsync(pt => (int?)pt.Paper.PublicationYear) ?? DateTime.UtcNow.Year;
 
         var startYear = maxYear - years + 1;
 
-        var paperYears = await _context.PaperTopics
+        var papersWithTopic = await _context.PaperTopics
             .Include(pt => pt.Paper)
-            .Where(pt => pt.TopicId == topicEntity.TopicId
+            .Where(pt => topicIds.Contains(pt.TopicId)
                       && pt.Paper.PublicationYear != null
                       && pt.Paper.PublicationYear >= startYear
                       && pt.Paper.PublicationYear <= maxYear)
-            .Select(pt => pt.Paper.PublicationYear!.Value)
+            .Select(pt => new { pt.PaperId, PublicationYear = pt.Paper.PublicationYear!.Value })
+            .Distinct()
             .ToListAsync();
 
-        var yearlyCounts = paperYears
-            .GroupBy(y => y)
-            .ToDictionary(g => g.Key, g => g.Count());
+        var yearlyCounts = papersWithTopic
+            .GroupBy(p => p.PublicationYear)
+            .Select(g => new YearlyCountDto { Year = g.Key, Count = g.Count() })
+            .ToDictionary(x => x.Year, x => x.Count);
 
         var result = new List<YearlyCountDto>();
         for (int y = startYear; y <= maxYear; y++)
@@ -1292,7 +1309,7 @@ public class AnalyticsService : IAnalyticsService
 
         return new TopicTrendDto
         {
-            TopicName = topicEntity.TopicName,
+            TopicName = exactTopic?.TopicName ?? topic,
             YearlyCounts = result
         };
     }

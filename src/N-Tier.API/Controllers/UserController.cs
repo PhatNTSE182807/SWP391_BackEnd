@@ -27,6 +27,7 @@ public class UserController(IUserService userService) : ApiController
     /// Nếu truyền NewPassword, bắt buộc phải truyền đúng OldPassword.
     /// </summary>
     [HttpPut("profile")]
+    [HttpPut("/api/profile")]
     public async Task<IActionResult> UpdateProfileAsync([FromBody] UpdateUserProfileModel model)
     {
         var result = await userService.UpdateProfileAsync(model);

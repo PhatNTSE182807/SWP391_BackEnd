@@ -75,7 +75,11 @@ public partial class DatabaseContext : DbContext
             {
                 optionsBuilder.UseSqlServer(
                     "Server=13.213.7.89,1433;Database=scientific_journal_tracking_db;User ID=backend_user;Password=NguyeN2004@;TrustServerCertificate=True;",
-                    opt => opt.MigrationsHistoryTable("__EFMigrationsHistory", "core"));
+                    opt => 
+                    {
+                        opt.MigrationsHistoryTable("__EFMigrationsHistory", "core");
+                        opt.EnableRetryOnFailure();
+                    });
             }
         }
 

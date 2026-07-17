@@ -52,6 +52,7 @@ public static class DataAccessDependencyInjection
                     {
                         opt.MigrationsAssembly(typeof(DatabaseContext).Assembly.FullName);
                         opt.MigrationsHistoryTable("__EFMigrationsHistory", "core");
+                        opt.EnableRetryOnFailure();
                     }));
     }
 }
