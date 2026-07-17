@@ -30,6 +30,7 @@ public class SearchPaperResultItem
     public string JournalName { get; set; }
     public List<string> Authors { get; set; } = new();
     public List<string> Keywords { get; set; } = new();
+    public List<string> Topics { get; set; } = new();
     public SearchHighlight Highlight { get; set; }
 }
 
@@ -54,6 +55,9 @@ public class SearchFacets
 
     /// <summary>Top keywords with counts.</summary>
     public List<FacetItem> Keywords { get; set; } = new();
+
+    /// <summary>Top topics with counts.</summary>
+    public List<FacetItem> Topics { get; set; } = new();
 }
 
 /// <summary>A single facet option: a value and how many documents match it.</summary>

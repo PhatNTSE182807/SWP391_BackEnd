@@ -42,5 +42,11 @@ public class SearchPaperRequest
     /// e.g. ?filterYear=2021&filterYear=2022
     /// </summary>
     public List<int> FilterYear { get; set; } = new();
+
+    /// <summary>
+    /// Filter by research topic(s). Supports multiple values (OR logic).
+    /// e.g. ?filterTopic=Machine+Learning&filterTopic=Deep+Learning
+    /// </summary>
+    public List<string> FilterTopic { get; set; } = new();
 }
 

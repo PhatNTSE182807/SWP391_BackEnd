@@ -183,6 +183,31 @@ public class SearchService : ISearchService
                     }
                 },
 
+                // ── Topic ───────────────────────────────────────────────────────────────
+                new NestedQuery
+                {
+                    Path = "topics",
+                    Query = new DisMaxQuery
+                    {
+                        Queries = new Query[]
+                        {
+                            new MatchPhraseQuery(new Field("topics.topicName"))
+                            {
+                                Query = request.Q,
+                                Boost = 8.0f,
+                                Slop = 0
+                            },
+                            new MatchQuery(new Field("topics.topicName"))
+                            {
+                                Query = request.Q,
+                                Operator = Operator.And,
+                                Boost = 5.0f
+                            }
+                        },
+                        TieBreaker = 0.3
+                    }
+                },
+
                 // ── Journal: phrase + AND inside nested ─────────────────────────────────
                 // "The MIT Press eBooks" → must match journal name precisely, not just 1 word.
                 // Phrase gets boost 8, AND-all-terms gets boost 4 — only strong matches win.
@@ -307,6 +332,22 @@ public class SearchService : ISearchService
             });
         }
 
+        // FilterTopic: nested → Terms on .keyword sub-field
+        if (request.FilterTopic?.Count > 0)
+        {
+            mustQueries.Add(new NestedQuery
+            {
+                Path = "topics",
+                Query = new TermsQuery
+                {
+                    Field = new Field("topics.topicName.keyword"),
+                    Terms = new TermsQueryField(
+                        request.FilterTopic.Select(v => FieldValue.String(v)).ToArray()
+                    )
+                }
+            });
+        }
+
         // FilterYear: Terms on integer field (publicationYear)
         if (request.FilterYear?.Count > 0)
         {
@@ -396,6 +437,18 @@ public class SearchService : ISearchService
                         )
                     )
                 )
+                // Topics — nested agg → inner terms
+                .Add("facet_topics", a => a
+                    .Nested(n => n.Path("topics"))
+                    .Aggregations(inner => inner
+                        .Add("topic_names", ia => ia
+                            .Terms(t => t
+                                .Field("topics.topicName.keyword")
+                                .Size(10)
+                            )
+                        )
+                    )
+                )
             )
         );
 
@@ -434,6 +487,10 @@ public class SearchService : ISearchService
                     Keywords = doc.Keywords?
                         .Where(k => !string.IsNullOrEmpty(k.KeywordName))
                         .Select(k => k.KeywordName)
+                        .ToList() ?? new List<string>(),
+                    Topics = doc.Topics?
+                        .Where(t => !string.IsNullOrEmpty(t.TopicName))
+                        .Select(t => t.TopicName)
                         .ToList() ?? new List<string>(),
                     Highlight = new SearchHighlight
                     {
@@ -515,6 +572,17 @@ public class SearchService : ISearchService
             keywordInner is StringTermsAggregate keywordTerms)
         {
             facets.Keywords = keywordTerms.Buckets
+                .Select(b => new FacetItem { Value = b.Key.ToString(), Count = b.DocCount })
+                .ToList();
+        }
+
+        // Topics — NestedAggregate → StringTermsAggregate
+        if (aggs.TryGetValue("facet_topics", out var topicsAgg) &&
+            topicsAgg is NestedAggregate topicNested &&
+            topicNested.Aggregations.TryGetValue("topic_names", out var topicInner) &&
+            topicInner is StringTermsAggregate topicTerms)
+        {
+            facets.Topics = topicTerms.Buckets
                 .Select(b => new FacetItem { Value = b.Key.ToString(), Count = b.DocCount })
                 .ToList();
         }
@@ -770,13 +838,25 @@ public class SearchService : ISearchService
                     .Nested("topics", n => n
                         .Properties(tp => tp
                             .Keyword("topicId")
-                            .Keyword("topicName")
+                            .Text("topicName", td => td
+                                .Analyzer("standard")
+                                .Fields(f => f.Keyword("keyword"))
+                            )
                             .Keyword("subfieldId")
-                            .Keyword("subfieldName")
+                            .Text("subfieldName", td => td
+                                .Analyzer("standard")
+                                .Fields(f => f.Keyword("keyword"))
+                            )
                             .Keyword("fieldId")
-                            .Keyword("fieldName")
+                            .Text("fieldName", td => td
+                                .Analyzer("standard")
+                                .Fields(f => f.Keyword("keyword"))
+                            )
                             .Keyword("domainId")
-                            .Keyword("domainName")
+                            .Text("domainName", td => td
+                                .Analyzer("standard")
+                                .Fields(f => f.Keyword("keyword"))
+                            )
                         )
                     )
                 )
@@ -867,7 +947,8 @@ public class SearchService : ISearchService
         var authors  = string.Join(",", request.FilterAuthor  ?? new());
         var keywords = string.Join(",", request.FilterKeyword ?? new());
         var years    = string.Join(",", request.FilterYear    ?? new());
-        return $"search:papers:{request.Q}:{request.Page}:{request.Size}:{request.From}:{request.To}:{request.Language}:{request.IsOpenAccess}:{journals}:{authors}:{keywords}:{years}";
+        var topics   = string.Join(",", request.FilterTopic   ?? new());
+        return $"search:papers:{request.Q}:{request.Page}:{request.Size}:{request.From}:{request.To}:{request.Language}:{request.IsOpenAccess}:{journals}:{authors}:{keywords}:{years}:{topics}";
     }
 
 
