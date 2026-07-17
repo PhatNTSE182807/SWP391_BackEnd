@@ -230,6 +230,7 @@ public class AnalyticsController : ApiController
         return Ok(ApiResult<List<TopicComparisonDto>>.Success(result));
     }
 
+
     /// <summary>
     /// Returns topics with highest publication growth over the latest available 1, 5, or 10 year window.
     /// </summary>

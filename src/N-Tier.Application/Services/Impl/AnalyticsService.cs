@@ -1544,6 +1544,8 @@ public class AnalyticsService : IAnalyticsService
 
     #endregion
 
+
+
     #region Researcher Dashboard (EF Core)
 
     public async Task<ResearcherDashboardDto> GetResearcherDashboardAsync(Guid userId)
