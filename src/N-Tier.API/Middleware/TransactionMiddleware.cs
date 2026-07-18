@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using N_Tier.DataAccess.Persistence;
 
 namespace N_Tier.API.Middleware;
@@ -14,18 +15,23 @@ public class TransactionMiddleware(RequestDelegate next, ILogger<TransactionMidd
             return;
         }
 
-        await using var transaction = await databaseContext.Database.BeginTransactionAsync();
+        var strategy = databaseContext.Database.CreateExecutionStrategy();
 
-        try
+        await strategy.ExecuteAsync(async () =>
         {
-            await next(context);
+            await using var transaction = await databaseContext.Database.BeginTransactionAsync();
 
-            await transaction.CommitAsync();
-        }
-        catch (Exception ex)
-        {
-            await transaction.RollbackAsync();
-            throw;
-        }
+            try
+            {
+                await next(context);
+
+                await transaction.CommitAsync();
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
+        });
     }
 }
