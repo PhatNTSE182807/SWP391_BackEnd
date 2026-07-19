@@ -41,6 +41,7 @@ public static class ApplicationDependencyInjection
         services.AddScoped<IDashboardService, DashboardService>();
         services.AddScoped<IAdminDashboardService, AdminDashboardService>();
         services.AddScoped<ITopicService, TopicService>();
+        services.AddScoped<INotificationService, NotificationService>();
 
         var smtpSettings = configuration.GetSection("SmtpSettings").Get<SmtpSettings>();
         if (env.IsDevelopment() && (smtpSettings == null || string.IsNullOrEmpty(smtpSettings.Password) || smtpSettings.Password.Contains("<account-password>")))

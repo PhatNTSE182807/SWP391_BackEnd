@@ -41,10 +41,7 @@ public class AuthService : IAuthService
         if (!PasswordHasher.VerifyPassword(loginRequestModel.Password, user.Password))
             throw new BadRequestException("Email or password is incorrect");
 
-        if (!user.IsActive)
-            throw new BadRequestException("Account is currently deactivated or unverified!");
-
-        var token = JwtHelper.GenerateToken(user, user.Role.RoleName, _configuration);
+        var token = user.IsActive ? JwtHelper.GenerateToken(user, user.Role.RoleName, _configuration) : null;
 
         return new LoginResponseModel
         {
@@ -53,7 +50,8 @@ public class AuthService : IAuthService
             Email = user.Email,
             Phonenumber = user.Phonenumber,
             RoleName = user.Role.RoleName,
-            Token = token
+            Token = token,
+            IsVerified = user.IsActive
         };
     }
 
@@ -95,7 +93,8 @@ public class AuthService : IAuthService
                 Username = deletedUser.Username,
                 Email = deletedUser.Email,
                 PhoneNumber = deletedUser.Phonenumber,
-                RoleName = selectedRole.RoleName
+                RoleName = selectedRole.RoleName,
+                IsVerified = false
             };
         }
 
@@ -141,7 +140,8 @@ public class AuthService : IAuthService
             Username = newUser.Username,
             Email = newUser.Email,
             PhoneNumber = newUser.Phonenumber,
-            RoleName = selectedRole2.RoleName
+            RoleName = selectedRole2.RoleName,
+            IsVerified = false
         };
     }
 

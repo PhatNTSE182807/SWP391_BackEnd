@@ -10,4 +10,5 @@ public class LoginResponseModel
     public string Phonenumber { get; set; }
     public string RoleName { get; set; }
     public string Token { get; set; }
+    public bool IsVerified { get; set; }
 }

@@ -7,6 +7,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="FirebaseAdmin" Version="3.6.0" />
         <PackageReference Include="FluentValidation.AspNetCore" Version="11.3.0" />
         <PackageReference Include="MailKit" Version="4.17.0" />
         <PackageReference Include="Mapster" Version="7.4.0" />
@@ -14,7 +15,7 @@
         <PackageReference Include="Elastic.Clients.Elasticsearch" Version="8.14.0" />
         <PackageReference Include="Microsoft.Extensions.Caching.Abstractions" Version="9.0.4" />
         <PackageReference Include="MimeKit" Version="4.17.0" />
-        <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+        <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
         <PackageReference Include="Hangfire.Core" Version="1.8.14" />
     </ItemGroup>
 

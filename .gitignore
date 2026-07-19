@@ -350,3 +350,6 @@ MigrationBackup/
 .ionide/
 
 .idea/
+
+# Firebase Service Account json file
+src/N-Tier.API/firebase-service-account.json

@@ -123,4 +123,14 @@ public class UserController(IUserService userService) : ApiController
         await userService.UnfollowJournalAsync(journalId);
         return Ok(ApiResult<string>.Success("Unfollowed journal successfully"));
     }
+
+    /// <summary>
+    /// Cập nhật FCM Device Token cho user đang đăng nhập.
+    /// </summary>
+    [HttpPost("device-token")]
+    public async Task<IActionResult> UpdateDeviceTokenAsync([FromBody] UpdateDeviceTokenModel model)
+    {
+        await userService.UpdateDeviceTokenAsync(model);
+        return Ok(ApiResult<string>.Success("Device token updated successfully"));
+    }
 }

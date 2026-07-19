@@ -33,4 +33,6 @@ public interface IUserService
     Task<List<UserFollowingJournalResponseModel>> GetFollowingJournalsAsync();
     Task<UserFollowingJournalResponseModel> FollowJournalAsync(Guid journalId);
     Task UnfollowJournalAsync(Guid journalId);
+
+    Task UpdateDeviceTokenAsync(UpdateDeviceTokenModel model);
 }

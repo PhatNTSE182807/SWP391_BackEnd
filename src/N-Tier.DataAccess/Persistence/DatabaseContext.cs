@@ -840,6 +840,9 @@ public partial class DatabaseContext : DbContext
                 .IsRequired()
                 .HasMaxLength(255)
                 .HasColumnName("email");
+            entity.Property(e => e.FcmToken)
+                .HasMaxLength(512)
+                .HasColumnName("fcm_token");
             entity.Property(e => e.Password)
                 .IsRequired()
                 .HasMaxLength(512)

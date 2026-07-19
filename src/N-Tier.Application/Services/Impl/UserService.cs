@@ -442,4 +442,18 @@ public class UserService : IUserService
 
         await _userFollowingJournalRepository.DeleteAsync(follow);
     }
+
+    public async Task UpdateDeviceTokenAsync(UpdateDeviceTokenModel model)
+    {
+        var currentUserIdStr = _claimService.GetUserId();
+        if (string.IsNullOrEmpty(currentUserIdStr) || !Guid.TryParse(currentUserIdStr, out var currentUserId))
+            throw new UnauthorizedException("User is not authenticated");
+
+        var user = await _coreUserRepository.GetFirstAsync(u => u.UserId == currentUserId);
+        if (user == null)
+            throw new NotFoundException("User not found");
+
+        user.FcmToken = model.DeviceToken;
+        await _coreUserRepository.UpdateAsync(user);
+    }
 }
