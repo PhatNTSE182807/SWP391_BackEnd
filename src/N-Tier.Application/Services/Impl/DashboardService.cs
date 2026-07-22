@@ -124,9 +124,9 @@ public class DashboardService : IDashboardService
             .MaxAsync(p => (int?)p.PublicationYear) ?? DateTime.UtcNow.Year;
 
         var end = endYear ?? maxYearInDb;
-        var start = startYear ?? (end - 9); // Default to 10-year window (Lấy 10 năm)
-        var step = 2; // Bước nhảy là 2 năm
-        var topCount = 10; // Lấy top 10
+        var start = startYear ?? (end - 9); // Default to 10-year window
+        var step = 2; // Step size is 2 years
+        var topCount = 10; // Retrieve top 10
 
         // Generate target years with the specified step
         var targetYears = new List<int>();

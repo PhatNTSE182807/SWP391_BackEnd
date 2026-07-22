@@ -12,7 +12,7 @@ namespace N_Tier.API.Controllers;
 public class UserController(IUserService userService) : ApiController
 {
     /// <summary>
-    /// Lấy thông tin cá nhân của user đang đăng nhập.
+    /// Gets the profile information of the currently logged-in user.
     /// </summary>
     [HttpGet("profile")]
     [HttpGet("/api/profile")]
@@ -23,8 +23,8 @@ public class UserController(IUserService userService) : ApiController
     }
 
     /// <summary>
-    /// Cho phép user đang đăng nhập tự cập nhật thông tin cá nhân.
-    /// Nếu truyền NewPassword, bắt buộc phải truyền đúng OldPassword.
+    /// Allows the currently logged-in user to update their own personal information.
+    /// If NewPassword is provided, OldPassword must also be provided and correct.
     /// </summary>
     [HttpPut("profile")]
     [HttpPut("/api/profile")]
@@ -35,7 +35,7 @@ public class UserController(IUserService userService) : ApiController
     }
 
     /// <summary>
-    /// Lấy danh sách bookmarks của user.
+    /// Gets the list of bookmarks for the current user.
     /// </summary>
     [HttpGet("bookmarks")]
     public async Task<IActionResult> GetBookmarksAsync()
@@ -45,7 +45,7 @@ public class UserController(IUserService userService) : ApiController
     }
 
     /// <summary>
-    /// Bookmark một bài báo.
+    /// Bookmarks a paper.
     /// </summary>
     [HttpPost("bookmarks/{paperId}")]
     public async Task<IActionResult> AddBookmarkAsync([FromRoute] System.Guid paperId)
@@ -55,7 +55,7 @@ public class UserController(IUserService userService) : ApiController
     }
 
     /// <summary>
-    /// Xóa bookmark của một bài báo.
+    /// Removes a bookmark from a paper.
     /// </summary>
     [HttpDelete("bookmarks/{paperId}")]
     public async Task<IActionResult> DeleteBookmarkAsync([FromRoute] System.Guid paperId)
@@ -65,7 +65,7 @@ public class UserController(IUserService userService) : ApiController
     }
 
     /// <summary>
-    /// Lấy danh sách topics user đang follow.
+    /// Gets the list of topics the current user is following.
     /// </summary>
     [HttpGet("following/topics")]
     public async Task<IActionResult> GetFollowingTopicsAsync()
@@ -75,7 +75,7 @@ public class UserController(IUserService userService) : ApiController
     }
 
     /// <summary>
-    /// Follow một topic.
+    /// Follows a topic.
     /// </summary>
     [HttpPost("following/topics/{topicId}")]
     public async Task<IActionResult> FollowTopicAsync([FromRoute] System.Guid topicId)
@@ -85,7 +85,7 @@ public class UserController(IUserService userService) : ApiController
     }
 
     /// <summary>
-    /// Unfollow một topic.
+    /// Unfollows a topic.
     /// </summary>
     [HttpDelete("following/topics/{topicId}")]
     public async Task<IActionResult> UnfollowTopicAsync([FromRoute] System.Guid topicId)
@@ -95,7 +95,7 @@ public class UserController(IUserService userService) : ApiController
     }
 
     /// <summary>
-    /// Lấy danh sách journals user đang follow.
+    /// Gets the list of journals the current user is following.
     /// </summary>
     [HttpGet("following/journals")]
     public async Task<IActionResult> GetFollowingJournalsAsync()
@@ -105,7 +105,7 @@ public class UserController(IUserService userService) : ApiController
     }
 
     /// <summary>
-    /// Follow một journal.
+    /// Follows a journal.
     /// </summary>
     [HttpPost("following/journals/{journalId}")]
     public async Task<IActionResult> FollowJournalAsync([FromRoute] System.Guid journalId)
@@ -115,7 +115,7 @@ public class UserController(IUserService userService) : ApiController
     }
 
     /// <summary>
-    /// Unfollow một journal.
+    /// Unfollows a journal.
     /// </summary>
     [HttpDelete("following/journals/{journalId}")]
     public async Task<IActionResult> UnfollowJournalAsync([FromRoute] System.Guid journalId)
@@ -125,7 +125,7 @@ public class UserController(IUserService userService) : ApiController
     }
 
     /// <summary>
-    /// Cập nhật FCM Device Token cho user đang đăng nhập.
+    /// Updates the FCM Device Token for the currently logged-in user.
     /// </summary>
     [HttpPost("device-token")]
     public async Task<IActionResult> UpdateDeviceTokenAsync([FromBody] UpdateDeviceTokenModel model)

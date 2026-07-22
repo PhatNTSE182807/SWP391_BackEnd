@@ -46,7 +46,7 @@ public class PapersController : ControllerBase
     {
         var client = _httpClientFactory.CreateClient();
         client.DefaultRequestHeaders.Add("User-Agent", "N-Tier-Academic-Trend-Analysis-App");
-        // Semantic scholar API yêu cầu 'fields' trong tham số để lấy nhiều thông tin hơn là id và tiêu đề
+        // Semantic Scholar API requires 'fields' in the query parameter to retrieve more information beyond just id and title
         string url = $"https://api.semanticscholar.org/graph/v1/paper/search?query={Uri.EscapeDataString(keyword)}&limit=10&fields=title,authors,abstract,venue";
         
         var response = await client.GetAsync(url);

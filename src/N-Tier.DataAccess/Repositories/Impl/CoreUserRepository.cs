@@ -57,7 +57,7 @@ public class CoreUserRepository : BaseRepository<User>, ICoreUserRepository
         => await DbSet.AnyAsync(u => u.Phonenumber == phoneNumber && u.UserId != excludeUserId && !u.IsDeleted);
 
     /// <summary>
-    /// Tìm user đã bị soft-delete theo email (dùng cho logic restore khi đăng ký lại)
+    /// Finds a soft-deleted user by email (used for restore logic when re-registering)
     /// </summary>
     public async Task<User> GetDeletedUserByEmailAsync(string email)
         => await DbSet.FirstOrDefaultAsync(u => u.Email == email && u.IsDeleted);

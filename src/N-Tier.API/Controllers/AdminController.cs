@@ -13,8 +13,8 @@ namespace N_Tier.API.Controllers;
 public class AdminController(IUserService userService) : ApiController
 {
     /// <summary>
-    /// Lấy danh sách tất cả users (username, email, phone, role, isActive) (paginated).
-    /// Chỉ dành cho System Administrator.
+    /// Gets a paginated list of all users (username, email, phone, role, isActive).
+    /// Only accessible by System Administrator.
     /// </summary>
     [HttpGet("users")]
     public async Task<IActionResult> GetAllUsersAsync([FromQuery] PagedRequest request)
@@ -24,9 +24,9 @@ public class AdminController(IUserService userService) : ApiController
     }
 
     /// <summary>
-    /// Toggle trạng thái active/deactivated của user.
-    /// Admin không thể deactivate chính mình.
-    /// Chỉ dành cho System Administrator.
+    /// Toggles the active/deactivated status of a user.
+    /// Admin cannot deactivate themselves.
+    /// Only accessible by System Administrator.
     /// </summary>
     [HttpPut("users/{userId:guid}/deactivate")]
     public async Task<IActionResult> DeactivateUserAsync(Guid userId)
@@ -36,8 +36,8 @@ public class AdminController(IUserService userService) : ApiController
     }
 
     /// <summary>
-    /// Kích hoạt lại tài khoản user đã bị deactivated.
-    /// Chỉ dành cho System Administrator.
+    /// Re-activates a previously deactivated user account.
+    /// Only accessible by System Administrator.
     /// </summary>
     [HttpPut("users/{userId:guid}/activate")]
     public async Task<IActionResult> ActivateUserAsync(Guid userId)
@@ -47,9 +47,9 @@ public class AdminController(IUserService userService) : ApiController
     }
 
     /// <summary>
-    /// Xóa tài khoản user theo userId.
-    /// Admin không thể tự xóa chính mình.
-    /// Chỉ dành cho System Administrator.
+    /// Deletes a user account by userId.
+    /// Admin cannot delete their own account.
+    /// Only accessible by System Administrator.
     /// </summary>
     [HttpDelete("users/{userId:guid}")]
     public async Task<IActionResult> DeleteUserAsync(Guid userId)

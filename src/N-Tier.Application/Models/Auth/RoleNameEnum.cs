@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 namespace N_Tier.Application.Models.Auth;
 
 /// <summary>
-/// Danh sách roles có thể chọn khi đăng ký tài khoản
+/// List of roles available for selection when registering an account
 /// </summary>
 [JsonConverter(typeof(JsonStringEnumConverter))]
 public enum RoleNameEnum
