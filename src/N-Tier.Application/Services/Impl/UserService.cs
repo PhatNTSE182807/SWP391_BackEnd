@@ -139,7 +139,7 @@ public class UserService : IUserService
     {
         var currentUserId = _claimService.GetUserId();
 
-        // Admin không được tự xóa chính mình
+        // Admin is not allowed to delete their own account
         if (currentUserId != null && Guid.Parse(currentUserId) == userId)
             throw new BadRequestException("You cannot delete your own account");
 
@@ -151,7 +151,7 @@ public class UserService : IUserService
         if (user.Role?.RoleName == "System Administrator")
             throw new BadRequestException("Cannot delete a System Administrator account");
 
-        // Soft delete: đánh dấu đã xóa, không xóa khỏi DB
+        // Soft delete: mark as deleted, do not remove from DB
         user.IsDeleted = true;
         user.DeletedAt = DateTimeOffset.UtcNow;
         user.IsActive = false;

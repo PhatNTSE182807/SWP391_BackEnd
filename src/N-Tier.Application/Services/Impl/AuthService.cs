@@ -59,7 +59,7 @@ public class AuthService : IAuthService
     {
         var roleName = GetRoleNameString(registerRequestModel.RoleName);
 
-        // Kiểm tra có phải email của tài khoản đã bị xóa không → restore thay vì tạo mới
+        // Check if the email belongs to a previously deleted account -> restore instead of creating a new one
         var deletedUser = await _coreUserRepository.GetDeletedUserByEmailAsync(registerRequestModel.Email);
         if (deletedUser != null)
         {
@@ -67,7 +67,7 @@ public class AuthService : IAuthService
             if (selectedRole == null)
                 throw new BadRequestException($"Role '{roleName}' does not exist");
 
-            // Restore lại tài khoản cũ với thông tin mới nhưng để IsActive = false chờ xác nhận
+            // Restore the old account with new information but set IsActive = false pending verification
             deletedUser.Username = registerRequestModel.Username;
             deletedUser.Phonenumber = registerRequestModel.PhoneNumber;
             deletedUser.Password = PasswordHasher.HashPassword(registerRequestModel.Password);
@@ -78,7 +78,7 @@ public class AuthService : IAuthService
 
             await _coreUserRepository.UpdateAsync(deletedUser);
 
-            // Gửi OTP
+            // Send OTP
             var otp = Random.Shared.Next(100000, 999999).ToString();
             var cacheOptions = new DistributedCacheEntryOptions
             {
@@ -120,12 +120,12 @@ public class AuthService : IAuthService
             Phonenumber = registerRequestModel.PhoneNumber,
             Password = PasswordHasher.HashPassword(registerRequestModel.Password),
             RoleId = selectedRole2.RoleId,
-            IsActive = false // Tài khoản chưa kích hoạt cho đến khi verify OTP
+            IsActive = false // Account is not yet activated until OTP is verified
         };
 
         await _coreUserRepository.InsertAsync(newUser);
 
-        // Gửi OTP
+        // Send OTP
         var otp2 = Random.Shared.Next(100000, 999999).ToString();
         var cacheOptions2 = new DistributedCacheEntryOptions
         {
