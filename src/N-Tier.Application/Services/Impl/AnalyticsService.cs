@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -64,7 +64,7 @@ public class AnalyticsService : IAnalyticsService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Exception in GetPaperCountByYearAsync while querying Elasticsearch");
+            _logger.LogError(ex, "[Analytics] ES Error in GetPaperCountByYearAsync");
             return new List<ChartDataPoint>();
         }
     }
@@ -164,7 +164,7 @@ public class AnalyticsService : IAnalyticsService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Exception in GetTopTopicsAsync while querying Elasticsearch");
+            _logger.LogError(ex, "[Analytics] ES Error in GetTopTopicsAsync");
             return new List<ChartDataPoint>();
         }
     }
@@ -246,7 +246,7 @@ public class AnalyticsService : IAnalyticsService
                                 .Aggregations(subSub => subSub
                                     .Add("keyword_buckets", t2 => t2
                                         .Terms(t3 => t3
-                                            .Field("keywords.keywordName")
+                                            .Field("keywords.keywordName.keyword")
                                             .Size(1000)
                                         )
                                     )
@@ -326,7 +326,7 @@ public class AnalyticsService : IAnalyticsService
                         .Aggregations(sub => sub
                             .Add("author_buckets", t => t
                                 .Terms(terms => terms
-                                    .Field("authors.displayName")
+                                    .Field("authors.displayName.keyword")
                                     .Size(size)
                                     .Order(new[] { KeyValuePair.Create<Field, SortOrder>("sum_citations", SortOrder.Desc) })
                                 )
@@ -382,7 +382,7 @@ public class AnalyticsService : IAnalyticsService
                         .Aggregations(sub => sub
                             .Add("author_buckets", t => t
                                 .Terms(terms => terms
-                                    .Field("authors.displayName")
+                                    .Field("authors.displayName.keyword")
                                     .Size(size)
                                     .Order(new[] { KeyValuePair.Create<Field, SortOrder>("max_hindex", SortOrder.Desc) })
                                 )
@@ -438,7 +438,7 @@ public class AnalyticsService : IAnalyticsService
                         .Aggregations(sub => sub
                             .Add("author_buckets", t => t
                                 .Terms(terms => terms
-                                    .Field("authors.displayName")
+                                    .Field("authors.displayName.keyword")
                                     .Size(size)
                                 )
                                 .Aggregations(subSub => subSub
@@ -447,7 +447,7 @@ public class AnalyticsService : IAnalyticsService
                                         .Aggregations(subSubSub => subSubSub
                                             .Add("coauthor_buckets", t2 => t2
                                                 .Terms(terms2 => terms2
-                                                    .Field("authors.displayName")
+                                                    .Field("authors.displayName.keyword")
                                                     .Size(10)
                                                 )
                                             )
@@ -560,7 +560,7 @@ public class AnalyticsService : IAnalyticsService
                         .Aggregations(sub => sub
                             .Add("top_journals", t => t
                                 .Terms(terms => terms
-                                    .Field("journal.journalName")
+                                    .Field("journal.journalName.keyword")
                                     .Size(size)
                                 )
                             )
@@ -609,12 +609,17 @@ public class AnalyticsService : IAnalyticsService
                         .Aggregations(sub => sub
                             .Add("top_journals", t => t
                                 .Terms(terms => terms
-                                    .Field("journal.journalName")
+                                    .Field("journal.journalName.keyword")
                                     .Size(size)
-                                    .Order(new[] { KeyValuePair.Create<Field, SortOrder>("sum_citations", SortOrder.Desc) })
+                                    .Order(new[] { KeyValuePair.Create<Field, SortOrder>("rev_citations > sum_citations", SortOrder.Desc) })
                                 )
                                 .Aggregations(subSub => subSub
-                                    .Add("sum_citations", sumAgg => sumAgg.Sum(sum => sum.Field("citedByCount")))
+                                    .Add("rev_citations", rev => rev
+                                        .ReverseNested(rn => { })
+                                        .Aggregations(parentSub => parentSub
+                                            .Add("sum_citations", sumAgg => sumAgg.Sum(sum => sum.Field("citedByCount")))
+                                        )
+                                    )
                                 )
                             )
                         )
@@ -636,7 +641,8 @@ public class AnalyticsService : IAnalyticsService
 
             return terms.Buckets
                 .Select(b => {
-                    var sumVal = b.Aggregations.GetSum("sum_citations")?.Value ?? 0;
+                    var revNested = b.Aggregations.GetReverseNested("rev_citations");
+                    var sumVal = revNested?.Aggregations.GetSum("sum_citations")?.Value ?? 0;
                     return new ChartDataPoint
                     {
                         Key = b.Key.ToString(),
@@ -675,25 +681,152 @@ public class AnalyticsService : IAnalyticsService
             }
 
             var terms = response.Aggregations.GetStringTerms("open_access");
-            if (terms == null) return new List<ChartDataPoint>();
+            if (terms != null)
+            {
+                return terms.Buckets
+                    .Select(b => {
+                        var isOa = b.Key.ToString();
+                        var label = isOa == "1" || isOa == "true" ? "Open Access" : "Closed";
+                        return new ChartDataPoint
+                        {
+                            Key = label,
+                            Value = b.DocCount
+                        };
+                    })
+                    .ToList();
+            }
 
-            return terms.Buckets
-                .Select(b => {
-                    var isOa = b.Key.ToString();
-                    var label = isOa == "1" || isOa == "true" ? "Open Access" : "Closed";
-                    return new ChartDataPoint
-                    {
-                        Key = label,
-                        Value = b.DocCount
-                    };
-                })
-                .ToList();
+            var longTerms = response.Aggregations.GetLongTerms("open_access");
+            if (longTerms != null)
+            {
+                return longTerms.Buckets
+                    .Select(b => {
+                        var isOa = b.Key.ToString();
+                        var label = isOa == "1" || isOa == "true" ? "Open Access" : "Closed";
+                        return new ChartDataPoint
+                        {
+                            Key = label,
+                            Value = b.DocCount
+                        };
+                    })
+                    .ToList();
+            }
+
+            return new List<ChartDataPoint>();
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Exception in GetOpenAccessRatioAsync while querying Elasticsearch");
             return new List<ChartDataPoint>();
         }
+    }
+
+    public async Task<List<JournalTrackerDto>> GetJournalTrackerAsync(int size = 20, int years = 5)
+    {
+        var maxYear = await _context.Papers
+            .Where(p => p.JournalId != null && p.PublicationYear != null)
+            .MaxAsync(p => (int?)p.PublicationYear);
+
+        if (!maxYear.HasValue)
+            return new List<JournalTrackerDto>();
+
+        var endYear = maxYear.Value;
+        var startYear = endYear - years + 1;
+
+        var journalRows = await _context.Papers
+            .AsNoTracking()
+            .Where(p => p.JournalId != null
+                        && p.PublicationYear != null
+                        && p.PublicationYear >= startYear
+                        && p.PublicationYear <= endYear)
+            .GroupBy(p => new
+            {
+                JournalId = p.JournalId!.Value,
+                p.Journal.JournalName,
+                p.Journal.Publisher,
+                p.Journal.HomepageUrl,
+                p.Journal.IsOpenAccess
+            })
+            .Select(g => new
+            {
+                g.Key.JournalId,
+                g.Key.JournalName,
+                g.Key.Publisher,
+                g.Key.HomepageUrl,
+                IsOpenAccess = g.Key.IsOpenAccess ?? false,
+                PaperCount = g.Count(),
+                CitationCount = g.Sum(p => p.CitedByCount ?? 0),
+                LastPublicationYear = g.Max(p => p.PublicationYear),
+                StartYearCount = g.Count(p => p.PublicationYear == startYear),
+                EndYearCount = g.Count(p => p.PublicationYear == endYear)
+            })
+            .OrderByDescending(x => x.PaperCount)
+            .Take(size)
+            .ToListAsync();
+
+        if (!journalRows.Any())
+            return new List<JournalTrackerDto>();
+
+        var journalIds = journalRows.Select(j => j.JournalId).ToList();
+
+        var keywordRows = await _context.PaperKeywords
+            .AsNoTracking()
+            .Where(pk => pk.Paper.JournalId != null
+                         && journalIds.Contains(pk.Paper.JournalId.Value)
+                         && pk.Paper.PublicationYear != null
+                         && pk.Paper.PublicationYear >= startYear
+                         && pk.Paper.PublicationYear <= endYear)
+            .GroupBy(pk => new
+            {
+                JournalId = pk.Paper.JournalId!.Value,
+                pk.Keyword.KeywordName
+            })
+            .Select(g => new
+            {
+                g.Key.JournalId,
+                g.Key.KeywordName,
+                Count = g.Count()
+            })
+            .ToListAsync();
+
+        var keywordsByJournal = keywordRows
+            .GroupBy(row => row.JournalId)
+            .ToDictionary(
+                g => g.Key,
+                g => g.OrderByDescending(row => row.Count)
+                    .ThenBy(row => row.KeywordName)
+                    .Take(3)
+                    .Select(row => row.KeywordName)
+                    .ToList());
+
+        return journalRows.Select(journal =>
+        {
+            double growth = 0;
+            if (journal.StartYearCount > 0)
+            {
+                growth = Math.Round((double)(journal.EndYearCount - journal.StartYearCount) / journal.StartYearCount * 100, 1);
+            }
+            else if (journal.EndYearCount > 0)
+            {
+                growth = 100.0;
+            }
+
+            return new JournalTrackerDto
+            {
+                JournalId = journal.JournalId,
+                JournalName = journal.JournalName,
+                Publisher = journal.Publisher,
+                HomepageUrl = journal.HomepageUrl,
+                IsOpenAccess = journal.IsOpenAccess,
+                PaperCount = journal.PaperCount,
+                CitationCount = journal.CitationCount,
+                GrowthPercentage = growth,
+                LastPublicationYear = journal.LastPublicationYear,
+                TopKeywords = keywordsByJournal.TryGetValue(journal.JournalId, out var keywords)
+                    ? keywords
+                    : new List<string>()
+            };
+        }).ToList();
     }
 
     #endregion
@@ -713,7 +846,7 @@ public class AnalyticsService : IAnalyticsService
                         .Aggregations(sub => sub
                             .Add("top_keywords", subAgg => subAgg
                                 .Terms(t => t
-                                    .Field("keywords.keywordName")
+                                    .Field("keywords.keywordName.keyword")
                                     .Size(size)
                                 )
                             )
@@ -772,7 +905,7 @@ public class AnalyticsService : IAnalyticsService
                             .Aggregations(subSub => subSub
                                 .Add("keyword_buckets", t2 => t2
                                     .Terms(t3 => t3
-                                        .Field("keywords.keywordName")
+                                        .Field("keywords.keywordName.keyword")
                                         .Size(100)
                                     )
                                 )
@@ -848,7 +981,7 @@ public class AnalyticsService : IAnalyticsService
                     .Aggregations(sub => sub
                         .Add("keyword_buckets", t => t
                             .Terms(terms => terms
-                                .Field("keywords.keywordName")
+                                .Field("keywords.keywordName.keyword")
                                 .Size(size)
                             )
                             .Aggregations(subSub => subSub
@@ -857,7 +990,7 @@ public class AnalyticsService : IAnalyticsService
                                     .Aggregations(subSubSub => subSubSub
                                         .Add("co_buckets", t2 => t2
                                             .Terms(terms2 => terms2
-                                                .Field("keywords.keywordName")
+                                                .Field("keywords.keywordName.keyword")
                                                 .Size(10)
                                             )
                                         )
@@ -945,6 +1078,103 @@ public class AnalyticsService : IAnalyticsService
         return graph;
     }
 
+    public async Task<NetworkGraphDto> GetTopicCoOccurrenceNetworkAsync(int size)
+    {
+        var topTopics = await _context.PaperTopics
+            .AsNoTracking()
+            .Include(pt => pt.Topic)
+                .ThenInclude(t => t.Subfield)
+                    .ThenInclude(sf => sf.Field)
+                        .ThenInclude(f => f.Domain)
+            .Where(pt => pt.Topic != null)
+            .GroupBy(pt => new
+            {
+                pt.TopicId,
+                pt.Topic.TopicName,
+                DomainName = pt.Topic.Subfield != null && pt.Topic.Subfield.Field != null && pt.Topic.Subfield.Field.Domain != null
+                    ? pt.Topic.Subfield.Field.Domain.DomainName
+                    : null
+            })
+            .Select(g => new
+            {
+                g.Key.TopicId,
+                g.Key.TopicName,
+                g.Key.DomainName,
+                PaperCount = g.Count()
+            })
+            .OrderByDescending(x => x.PaperCount)
+            .Take(size)
+            .ToListAsync();
+
+        if (!topTopics.Any())
+            return new NetworkGraphDto();
+
+        var topicIds = topTopics.Select(t => t.TopicId).ToHashSet();
+
+        var paperTopicRows = await _context.PaperTopics
+            .AsNoTracking()
+            .Where(pt => topicIds.Contains(pt.TopicId))
+            .Select(pt => new
+            {
+                pt.PaperId,
+                pt.TopicId
+            })
+            .ToListAsync();
+
+        var nodeMap = topTopics.ToDictionary(
+            topic => topic.TopicId,
+            topic => new GraphNode
+            {
+                Id = topic.TopicId.ToString(),
+                Label = topic.TopicName,
+                Size = topic.PaperCount,
+                Group = string.IsNullOrWhiteSpace(topic.DomainName) ? "Research Topic" : topic.DomainName
+            });
+
+        var edgeMap = new Dictionary<string, GraphEdge>();
+
+        foreach (var topicGroup in paperTopicRows.GroupBy(row => row.PaperId))
+        {
+            var topicsInPaper = topicGroup
+                .Select(row => row.TopicId)
+                .Distinct()
+                .OrderBy(id => id)
+                .ToList();
+
+            for (var i = 0; i < topicsInPaper.Count; i++)
+            {
+                for (var j = i + 1; j < topicsInPaper.Count; j++)
+                {
+                    var source = topicsInPaper[i].ToString();
+                    var target = topicsInPaper[j].ToString();
+                    var edgeKey = $"{source}-{target}";
+
+                    if (!edgeMap.TryGetValue(edgeKey, out var edge))
+                    {
+                        edgeMap[edgeKey] = new GraphEdge
+                        {
+                            Source = source,
+                            Target = target,
+                            Weight = 1
+                        };
+                    }
+                    else
+                    {
+                        edge.Weight += 1;
+                    }
+                }
+            }
+        }
+
+        return new NetworkGraphDto
+        {
+            Nodes = nodeMap.Values.ToList(),
+            Edges = edgeMap.Values
+                .OrderByDescending(edge => edge.Weight)
+                .ToList()
+        };
+    }
+
     #endregion
 
     #region Keyword & Topic Trends (EF Core)
@@ -953,10 +1183,21 @@ public class AnalyticsService : IAnalyticsService
     {
         var normalizedKeyword = keyword.Trim().ToLower();
 
-        var keywordEntity = await _context.Keywords
-            .FirstOrDefaultAsync(k => k.NormalizedName.Contains(normalizedKeyword));
+        var exactKeyword = await _context.Keywords
+            .AsNoTracking()
+            .FirstOrDefaultAsync(k => k.NormalizedName == normalizedKeyword);
 
-        if (keywordEntity == null)
+        var matchedKeywordsQuery = _context.Keywords
+            .AsNoTracking()
+            .Where(k => exactKeyword != null
+                ? k.KeywordId == exactKeyword.KeywordId
+                : k.NormalizedName.Contains(normalizedKeyword));
+
+        var matchedKeywords = await matchedKeywordsQuery
+            .Select(k => new { k.KeywordId, k.KeywordName })
+            .ToListAsync();
+
+        if (!matchedKeywords.Any())
         {
             return new KeywordTrendDto
             {
@@ -965,23 +1206,27 @@ public class AnalyticsService : IAnalyticsService
             };
         }
 
-        var maxYear = await _context.Papers
-            .Where(p => p.PublicationYear != null)
-            .MaxAsync(p => (int?)p.PublicationYear) ?? DateTime.UtcNow.Year;
+        var keywordIds = matchedKeywords.Select(k => k.KeywordId).ToList();
+
+        var maxYear = await _context.PaperKeywords
+            .Where(pk => keywordIds.Contains(pk.KeywordId) && pk.Paper.PublicationYear != null)
+            .MaxAsync(pk => (int?)pk.Paper.PublicationYear) ?? DateTime.UtcNow.Year;
 
         var startYear = maxYear - years + 1;
 
+
         var papersWithKeyword = await _context.PaperKeywords
             .Include(pk => pk.Paper)
-            .Where(pk => pk.KeywordId == keywordEntity.KeywordId
+            .Where(pk => keywordIds.Contains(pk.KeywordId)
                       && pk.Paper.PublicationYear != null
                       && pk.Paper.PublicationYear >= startYear
                       && pk.Paper.PublicationYear <= maxYear)
-            .Select(pk => pk.Paper.PublicationYear!.Value)
+            .Select(pk => new { pk.PaperId, PublicationYear = pk.Paper.PublicationYear!.Value })
+            .Distinct()
             .ToListAsync();
 
         var yearlyCounts = papersWithKeyword
-            .GroupBy(y => y)
+            .GroupBy(p => p.PublicationYear)
             .Select(g => new YearlyCountDto { Year = g.Key, Count = g.Count() })
             .ToDictionary(x => x.Year, x => x.Count);
 
@@ -997,7 +1242,7 @@ public class AnalyticsService : IAnalyticsService
 
         return new KeywordTrendDto
         {
-            Keyword = keywordEntity.KeywordName,
+            Keyword = exactKeyword?.KeywordName ?? keyword,
             YearlyCounts = result
         };
     }
@@ -1006,10 +1251,21 @@ public class AnalyticsService : IAnalyticsService
     {
         var normalizedTopic = topic.Trim().ToLower();
 
-        var topicEntity = await _context.ResearchTopics
-            .FirstOrDefaultAsync(t => t.NormalizedName.Contains(normalizedTopic));
+        var exactTopic = await _context.ResearchTopics
+            .AsNoTracking()
+            .FirstOrDefaultAsync(t => t.NormalizedName == normalizedTopic);
 
-        if (topicEntity == null)
+        var matchedTopicsQuery = _context.ResearchTopics
+            .AsNoTracking()
+            .Where(t => exactTopic != null
+                ? t.TopicId == exactTopic.TopicId
+                : t.NormalizedName.Contains(normalizedTopic));
+
+        var matchedTopics = await matchedTopicsQuery
+            .Select(t => new { t.TopicId, t.TopicName })
+            .ToListAsync();
+
+        if (!matchedTopics.Any())
         {
             return new TopicTrendDto
             {
@@ -1018,24 +1274,28 @@ public class AnalyticsService : IAnalyticsService
             };
         }
 
-        var maxYear = await _context.Papers
-            .Where(p => p.PublicationYear != null)
-            .MaxAsync(p => (int?)p.PublicationYear) ?? DateTime.UtcNow.Year;
+        var topicIds = matchedTopics.Select(t => t.TopicId).ToList();
+
+        var maxYear = await _context.PaperTopics
+            .Where(pt => topicIds.Contains(pt.TopicId) && pt.Paper.PublicationYear != null)
+            .MaxAsync(pt => (int?)pt.Paper.PublicationYear) ?? DateTime.UtcNow.Year;
 
         var startYear = maxYear - years + 1;
 
-        var paperYears = await _context.PaperTopics
+        var papersWithTopic = await _context.PaperTopics
             .Include(pt => pt.Paper)
-            .Where(pt => pt.TopicId == topicEntity.TopicId
+            .Where(pt => topicIds.Contains(pt.TopicId)
                       && pt.Paper.PublicationYear != null
                       && pt.Paper.PublicationYear >= startYear
                       && pt.Paper.PublicationYear <= maxYear)
-            .Select(pt => pt.Paper.PublicationYear!.Value)
+            .Select(pt => new { pt.PaperId, PublicationYear = pt.Paper.PublicationYear!.Value })
+            .Distinct()
             .ToListAsync();
 
-        var yearlyCounts = paperYears
-            .GroupBy(y => y)
-            .ToDictionary(g => g.Key, g => g.Count());
+        var yearlyCounts = papersWithTopic
+            .GroupBy(p => p.PublicationYear)
+            .Select(g => new YearlyCountDto { Year = g.Key, Count = g.Count() })
+            .ToDictionary(x => x.Year, x => x.Count);
 
         var result = new List<YearlyCountDto>();
         for (int y = startYear; y <= maxYear; y++)
@@ -1049,49 +1309,193 @@ public class AnalyticsService : IAnalyticsService
 
         return new TopicTrendDto
         {
-            TopicName = topicEntity.TopicName,
+            TopicName = exactTopic?.TopicName ?? topic,
             YearlyCounts = result
         };
     }
 
-    public async Task<IEnumerable<TrendingTopicDto>> GetTrendingTopicsAsync(int topCount = 10)
+    public async Task<List<AvailableTopicForCompareDto>> GetAvailableTopicsForCompareAsync(string search = "", int size = 300)
     {
-        var maxYear = await _context.Papers
-            .Where(p => p.PublicationYear != null)
-            .MaxAsync(p => (int?)p.PublicationYear) ?? DateTime.UtcNow.Year;
+        var normalizedSearch = search?.Trim().ToLower();
 
-        var previousYear = maxYear - 1;
+        var query = _context.PaperTopics
+            .AsNoTracking()
+            .Where(pt => pt.Paper.PublicationYear != null);
 
-        var allTopicIds = await _context.PaperTopics
-            .GroupBy(pt => pt.TopicId)
-            .OrderByDescending(g => g.Count())
-            .Take(topCount * 3)
-            .Select(g => g.Key)
+        if (!string.IsNullOrWhiteSpace(normalizedSearch))
+        {
+            query = query.Where(pt =>
+                pt.Topic.NormalizedName.Contains(normalizedSearch) ||
+                pt.Topic.TopicName.ToLower().Contains(normalizedSearch));
+        }
+
+        return await query
+            .GroupBy(pt => new
+            {
+                pt.TopicId,
+                pt.Topic.TopicName
+            })
+            .Select(g => new AvailableTopicForCompareDto
+            {
+                TopicId = g.Key.TopicId,
+                TopicName = g.Key.TopicName,
+                PaperCount = g.Select(pt => pt.PaperId).Distinct().Count(),
+                FirstYear = g.Min(pt => pt.Paper.PublicationYear!.Value),
+                LastYear = g.Max(pt => pt.Paper.PublicationYear!.Value)
+            })
+            .OrderByDescending(topic => topic.PaperCount)
+            .ThenBy(topic => topic.TopicName)
+            .Take(size)
+            .ToListAsync();
+    }
+
+    public async Task<List<TopicComparisonDto>> CompareTopicsAsync(List<Guid> topicIds, int years = 5)
+    {
+        var distinctTopicIds = topicIds.Distinct().ToList();
+
+        var topics = await _context.ResearchTopics
+            .AsNoTracking()
+            .Where(t => distinctTopicIds.Contains(t.TopicId))
+            .Select(t => new
+            {
+                t.TopicId,
+                t.TopicName
+            })
+            .ToListAsync();
+
+        if (!topics.Any())
+            return new List<TopicComparisonDto>();
+
+        var maxYear = await _context.PaperTopics
+            .Where(pt => distinctTopicIds.Contains(pt.TopicId) && pt.Paper.PublicationYear != null)
+            .MaxAsync(pt => (int?)pt.Paper.PublicationYear) ?? DateTime.UtcNow.Year;
+
+        var startYear = maxYear - years + 1;
+
+        var rows = await _context.PaperTopics
+            .AsNoTracking()
+            .Where(pt => distinctTopicIds.Contains(pt.TopicId)
+                         && pt.Paper.PublicationYear != null
+                         && pt.Paper.PublicationYear >= startYear
+                         && pt.Paper.PublicationYear <= maxYear)
+            .Select(pt => new
+            {
+                pt.TopicId,
+                pt.PaperId,
+                PublicationYear = pt.Paper.PublicationYear!.Value,
+                CitedByCount = pt.Paper.CitedByCount ?? 0,
+                pt.Paper.JournalId
+            })
+            .ToListAsync();
+
+        var results = new List<TopicComparisonDto>();
+
+        foreach (var topic in topics)
+        {
+            var topicPapers = rows
+                .Where(row => row.TopicId == topic.TopicId)
+                .GroupBy(row => row.PaperId)
+                .Select(g => g.First())
+                .ToList();
+
+            var yearlyCounts = topicPapers
+                .GroupBy(row => row.PublicationYear)
+                .ToDictionary(g => g.Key, g => g.Count());
+
+            var yearlyResult = new List<YearlyCountDto>();
+            for (var year = startYear; year <= maxYear; year++)
+            {
+                yearlyResult.Add(new YearlyCountDto
+                {
+                    Year = year,
+                    Count = yearlyCounts.TryGetValue(year, out var count) ? count : 0
+                });
+            }
+
+            var startCount = yearlyResult.FirstOrDefault()?.Count ?? 0;
+            var endCount = yearlyResult.LastOrDefault()?.Count ?? 0;
+            double growth = 0;
+            if (startCount > 0)
+            {
+                growth = Math.Round((double)(endCount - startCount) / startCount * 100, 1);
+            }
+            else if (endCount > 0)
+            {
+                growth = 100.0;
+            }
+
+            results.Add(new TopicComparisonDto
+            {
+                TopicId = topic.TopicId,
+                TopicName = topic.TopicName,
+                PaperCount = topicPapers.Count,
+                CitationCount = topicPapers.Sum(row => row.CitedByCount),
+                JournalCount = topicPapers
+                    .Where(row => row.JournalId.HasValue)
+                    .Select(row => row.JournalId!.Value)
+                    .Distinct()
+                    .Count(),
+                TopicHIndex = CalculateHIndex(topicPapers.Select(row => row.CitedByCount)),
+                GrowthPercentage = growth,
+                StartYear = startYear,
+                EndYear = maxYear,
+                YearlyCounts = yearlyResult
+            });
+        }
+
+        return results
+            .OrderByDescending(result => result.PaperCount)
+            .ToList();
+    }
+
+    public async Task<IEnumerable<TrendingTopicDto>> GetTrendingTopicsAsync(int years = 1, int topCount = 10)
+    {
+        var yearlyTopicLinkCounts = await _context.PaperTopics
+            .Where(pt => pt.Paper.PublicationYear != null)
+            .GroupBy(pt => pt.Paper.PublicationYear!.Value)
+            .Select(g => new
+            {
+                Year = g.Key,
+                TopicLinkCount = g.Count()
+            })
+            .OrderByDescending(x => x.Year)
+            .ToListAsync();
+
+        if (!yearlyTopicLinkCounts.Any())
+            return Enumerable.Empty<TrendingTopicDto>();
+
+        var minimumTopicLinksForTrendYear = Math.Max(3, topCount);
+        var currentYear = yearlyTopicLinkCounts
+            .FirstOrDefault(x => x.TopicLinkCount >= minimumTopicLinksForTrendYear)?.Year
+            ?? yearlyTopicLinkCounts.First().Year;
+
+        var previousYear = currentYear - years;
+
+        var topicCounts = await _context.PaperTopics
+            .Where(pt => pt.Paper.PublicationYear == currentYear || pt.Paper.PublicationYear == previousYear)
+            .GroupBy(pt => new { pt.TopicId, pt.Topic.TopicName })
+            .Select(g => new
+            {
+                g.Key.TopicId,
+                g.Key.TopicName,
+                CurrentYearCount = g.Count(pt => pt.Paper.PublicationYear == currentYear),
+                PreviousYearCount = g.Count(pt => pt.Paper.PublicationYear == previousYear)
+            })
+            .Where(x => x.CurrentYearCount > 0)
             .ToListAsync();
 
         var trendingTopics = new List<TrendingTopicDto>();
 
-        foreach (var topicId in allTopicIds)
+        foreach (var topic in topicCounts)
         {
-            var topic = await _context.ResearchTopics.FindAsync(topicId);
-            if (topic == null) continue;
-
-            var currentYearCount = await _context.PaperTopics
-                .Include(pt => pt.Paper)
-                .CountAsync(pt => pt.TopicId == topicId && pt.Paper.PublicationYear == maxYear);
-
-            var previousYearCount = await _context.PaperTopics
-                .Include(pt => pt.Paper)
-                .CountAsync(pt => pt.TopicId == topicId && pt.Paper.PublicationYear == previousYear);
-
             double growth = 0;
             string trend;
 
-            if (previousYearCount > 0)
+            if (topic.PreviousYearCount > 0)
             {
-                growth = Math.Round((double)(currentYearCount - previousYearCount) / previousYearCount * 100, 1);
+                growth = Math.Round((double)(topic.CurrentYearCount - topic.PreviousYearCount) / topic.PreviousYearCount * 100, 1);
             }
-            else if (currentYearCount > 0)
+            else if (topic.CurrentYearCount > 0)
             {
                 growth = 100.0;
             }
@@ -1103,18 +1507,44 @@ public class AnalyticsService : IAnalyticsService
             trendingTopics.Add(new TrendingTopicDto
             {
                 TopicName = topic.TopicName,
-                PaperCount = currentYearCount,
+                PaperCount = topic.CurrentYearCount,
+                PreviousPaperCount = topic.PreviousYearCount,
                 GrowthPercentage = growth,
-                Trend = trend
+                Trend = trend,
+                CurrentYear = currentYear,
+                PreviousYear = previousYear,
+                Years = years
             });
         }
 
         return trendingTopics
             .OrderByDescending(t => t.GrowthPercentage)
+            .ThenByDescending(t => t.PaperCount)
             .Take(topCount);
     }
 
+    private static int CalculateHIndex(IEnumerable<int> citations)
+    {
+        var orderedCitations = citations
+            .OrderByDescending(citationCount => citationCount)
+            .ToList();
+
+        var hIndex = 0;
+        for (var i = 0; i < orderedCitations.Count; i++)
+        {
+            var rank = i + 1;
+            if (orderedCitations[i] >= rank)
+                hIndex = rank;
+            else
+                break;
+        }
+
+        return hIndex;
+    }
+
     #endregion
+
+
 
     #region Researcher Dashboard (EF Core)
 

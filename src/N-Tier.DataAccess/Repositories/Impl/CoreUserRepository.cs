@@ -57,7 +57,7 @@ public class CoreUserRepository : BaseRepository<User>, ICoreUserRepository
         => await DbSet.AnyAsync(u => u.Phonenumber == phoneNumber && u.UserId != excludeUserId && !u.IsDeleted);
 
     /// <summary>
-    /// Tìm user đã bị soft-delete theo email (dùng cho logic restore khi đăng ký lại)
+    /// Finds a soft-deleted user by email (used for restore logic when re-registering)
     /// </summary>
     public async Task<User> GetDeletedUserByEmailAsync(string email)
         => await DbSet.FirstOrDefaultAsync(u => u.Email == email && u.IsDeleted);
@@ -76,5 +76,19 @@ public class CoreUserRepository : BaseRepository<User>, ICoreUserRepository
         return await DbSet
             .Include(u => u.Role)
             .FirstOrDefaultAsync(u => u.UserId == userId);
+    }
+
+    public async Task<(IEnumerable<User> Results, int TotalCount)> GetPaginatedAsync(int page, int size)
+    {
+        var total = await DbSet.CountAsync(u => !u.IsDeleted);
+        var results = await DbSet
+            .Include(u => u.Role)
+            .Where(u => !u.IsDeleted)
+            .OrderBy(u => u.Username)
+            .Skip((page - 1) * size)
+            .Take(size)
+            .ToListAsync();
+
+        return (results, total);
     }
 }

@@ -1,4 +1,5 @@
-﻿using N_Tier.DataAccess.Persistence;
+using Microsoft.EntityFrameworkCore;
+using N_Tier.DataAccess.Persistence;
 
 namespace N_Tier.API.Middleware;
 
@@ -8,17 +9,29 @@ public class TransactionMiddleware(RequestDelegate next, ILogger<TransactionMidd
 
     public async Task Invoke(HttpContext context, DatabaseContext databaseContext)
     {
-        await using var transaction = await databaseContext.Database.BeginTransactionAsync();
-
-        try
+        if (context.Request.Method.Equals("GET", StringComparison.OrdinalIgnoreCase))
         {
             await next(context);
+            return;
+        }
 
-            await transaction.CommitAsync();
-        }
-        catch
+        var strategy = databaseContext.Database.CreateExecutionStrategy();
+
+        await strategy.ExecuteAsync(async () =>
         {
-            await transaction.RollbackAsync();
-        }
+            await using var transaction = await databaseContext.Database.BeginTransactionAsync();
+
+            try
+            {
+                await next(context);
+
+                await transaction.CommitAsync();
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
+        });
     }
 }

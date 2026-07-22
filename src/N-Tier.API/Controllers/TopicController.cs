@@ -20,13 +20,13 @@ public class TopicController : ApiController
     }
 
     /// <summary>
-    /// Get all topics from database
+    /// Get all topics from database (paginated)
     /// </summary>
     [HttpGet]
-    public async Task<IActionResult> GetAllAsync()
+    public async Task<IActionResult> GetAllAsync([FromQuery] TopicPagedRequest request)
     {
-        var result = await _topicService.GetAllTopicsAsync();
-        return Ok(ApiResult<List<TopicResponseModel>>.Success(result));
+        var result = await _topicService.GetPaginatedTopicsAsync(request);
+        return Ok(ApiResult<PagedResponse<TopicResponseModel>>.Success(result));
     }
 
     /// <summary>

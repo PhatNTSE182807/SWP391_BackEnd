@@ -66,6 +66,8 @@ public partial class DatabaseContext : DbContext
 
     public virtual DbSet<UserFollowingTopic> UserFollowingTopics { get; set; }
 
+    public virtual DbSet<UserFollowingJournal> UserFollowingJournals { get; set; }
+
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
 #warning To protect potentially sensitive information in your connection string, you should move it out of source code. You can avoid scaffolding the connection string by using the Name= syntax to read it from configuration - see https://go.microsoft.com/fwlink/?linkid=2131148. For more guidance on storing connection strings, see https://go.microsoft.com/fwlink/?LinkId=723263.
         {
@@ -73,7 +75,11 @@ public partial class DatabaseContext : DbContext
             {
                 optionsBuilder.UseSqlServer(
                     "Server=13.213.7.89,1433;Database=scientific_journal_tracking_db;User ID=backend_user;Password=NguyeN2004@;TrustServerCertificate=True;",
-                    opt => opt.MigrationsHistoryTable("__EFMigrationsHistory", "core"));
+                    opt => 
+                    {
+                        opt.MigrationsHistoryTable("__EFMigrationsHistory", "core");
+                        opt.EnableRetryOnFailure();
+                    });
             }
         }
 
@@ -834,6 +840,9 @@ public partial class DatabaseContext : DbContext
                 .IsRequired()
                 .HasMaxLength(255)
                 .HasColumnName("email");
+            entity.Property(e => e.FcmToken)
+                .HasMaxLength(512)
+                .HasColumnName("fcm_token");
             entity.Property(e => e.Password)
                 .IsRequired()
                 .HasMaxLength(512)
@@ -841,6 +850,9 @@ public partial class DatabaseContext : DbContext
             entity.Property(e => e.Phonenumber)
                 .HasMaxLength(50)
                 .HasColumnName("phonenumber");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(dateadd(hour,(7),sysutcdatetime()))")
+                .HasColumnName("created_at");
             entity.Property(e => e.IsActive)
                 .HasDefaultValue(true)
                 .HasColumnName("is_active");
@@ -914,6 +926,36 @@ public partial class DatabaseContext : DbContext
                 .HasForeignKey(d => d.TopicId)
                 .OnDelete(DeleteBehavior.Cascade)
                 .HasConstraintName("FK_core_user_following_topics_topics");
+        });
+
+        modelBuilder.Entity<UserFollowingJournal>(entity =>
+        {
+            entity.HasKey(e => e.FollowId).HasName("PK_core_user_following_journals");
+
+            entity.ToTable("user_following_journals", "core");
+
+            entity.HasIndex(e => new { e.UserId, e.JournalId }, "UQ_core_user_following_journals_user_journal").IsUnique();
+
+            entity.Property(e => e.FollowId)
+                .HasDefaultValueSql("(newid())")
+                .HasColumnName("follow_id");
+            
+            entity.Property(e => e.UserId).HasColumnName("user_id");
+            entity.Property(e => e.JournalId).HasColumnName("journal_id");
+            
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(dateadd(hour,(7),sysutcdatetime()))")
+                .HasColumnName("created_at");
+
+            entity.HasOne(d => d.User).WithMany(p => p.UserFollowingJournals)
+                .HasForeignKey(d => d.UserId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_core_user_following_journals_users");
+
+            entity.HasOne(d => d.Journal).WithMany(p => p.UserFollowingJournals)
+                .HasForeignKey(d => d.JournalId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_core_user_following_journals_journals");
         });
 
         OnModelCreatingPartial(modelBuilder);

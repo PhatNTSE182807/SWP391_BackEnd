@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using N_Tier.Application.Models.Dashboard;
+using N_Tier.Application.Models.Analytics;
 using N_Tier.DataAccess.Persistence;
 
 namespace N_Tier.Application.Services.Impl;
@@ -44,9 +45,7 @@ public class DashboardService : IDashboardService
         var maxDate = await _context.Papers.MaxAsync(p => (DateOnly?)p.PublicationDate);
         var referenceDate = maxDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
 
-        var startDate = referenceDate.AddMonths(-lastXMonths);
-        var startYear = startDate.Year;
-        var startMonth = startDate.Month;
+        var startDate = referenceDate.AddMonths(-lastXMonths + 1);
 
         // Get top 3 topics overall to show in trends
         var topTopics = await _context.PaperTopics
@@ -88,7 +87,7 @@ public class DashboardService : IDashboardService
 
             // Fill missing months
             var completeMonthlyCounts = new List<MonthlyCountDto>();
-            for (int i = lastXMonths; i >= 0; i--)
+            for (int i = lastXMonths - 1; i >= 0; i--)
             {
                 var d = referenceDate.AddMonths(-i);
                 var existing = monthlyCounts.FirstOrDefault(m => m.Year == d.Year && m.MonthNumber == d.Month);
@@ -118,55 +117,130 @@ public class DashboardService : IDashboardService
         return trends;
     }
 
-    public async Task<IEnumerable<HotTopicDto>> GetHotTopicsAsync(int topCount = 5)
+    public async Task<IEnumerable<HotTopicDto>> GetHotTopicsAsync(int? startYear, int? endYear)
     {
-        var maxDate = await _context.Papers.MaxAsync(p => (DateOnly?)p.PublicationDate);
-        var referenceDate = maxDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
+        var maxYearInDb = await _context.Papers
+            .Where(p => p.PublicationYear != null)
+            .MaxAsync(p => (int?)p.PublicationYear) ?? DateTime.UtcNow.Year;
 
-        var currentMonthStart = new DateOnly(referenceDate.Year, referenceDate.Month, 1);
-        var previousMonthStart = currentMonthStart.AddMonths(-1);
+        var end = endYear ?? maxYearInDb;
+        var start = startYear ?? (end - 9); // Default to 10-year window
+        var step = 2; // Step size is 2 years
+        var topCount = 10; // Retrieve top 10
 
-        // Find topics with most publications overall to ensure we return enough topics
-        var topTopicIds = await _context.PaperTopics
+        // Generate target years with the specified step
+        var targetYears = new List<int>();
+        for (int y = end; y >= start; y -= step)
+        {
+            targetYears.Add(y);
+        }
+        targetYears.Reverse(); // e.g. 2020, 2022, 2024, 2026
+
+        // Find the top topics by total paper count within the chosen year range (start to end)
+        var topTopics = await _context.PaperTopics
+            .Where(pt => pt.Paper.PublicationYear != null 
+                      && pt.Paper.PublicationYear >= start 
+                      && pt.Paper.PublicationYear <= end)
             .GroupBy(pt => pt.TopicId)
             .OrderByDescending(g => g.Count())
             .Take(topCount)
-            .Select(g => g.Key)
+            .Select(g => new { TopicId = g.Key, TotalCount = g.Count() })
             .ToListAsync();
 
-        var hotTopics = new List<HotTopicDto>();
+        if (!topTopics.Any())
+            return Enumerable.Empty<HotTopicDto>();
 
-        foreach (var topicId in topTopicIds)
+        var topicIds = topTopics.Select(t => t.TopicId).ToList();
+        var overallTotalCount = topTopics.Sum(t => t.TotalCount);
+
+        // Get count details in target years plus the step offset (start - step + 1 to end)
+        var queryStartYear = start - step + 1;
+        var paperTopicsQuery = await _context.PaperTopics
+            .Where(pt => topicIds.Contains(pt.TopicId)
+                      && pt.Paper.PublicationYear != null
+                      && pt.Paper.PublicationYear >= queryStartYear
+                      && pt.Paper.PublicationYear <= end)
+            .Select(pt => new
+            {
+                pt.TopicId,
+                pt.Topic.TopicName,
+                PublicationYear = pt.Paper.PublicationYear!.Value
+            })
+            .ToListAsync();
+
+        var trends = new List<HotTopicDto>();
+
+        foreach (var topTopic in topTopics)
         {
-            var topic = await _context.ResearchTopics.FindAsync(topicId);
-            if (topic == null) continue;
+            var topicName = paperTopicsQuery
+                .FirstOrDefault(pt => pt.TopicId == topTopic.TopicId)?.TopicName
+                ?? (await _context.ResearchTopics.FindAsync(topTopic.TopicId))?.TopicName;
 
-            var currentMonthCount = await _context.PaperTopics
-                .Include(pt => pt.Paper)
-                .CountAsync(pt => pt.TopicId == topicId && pt.Paper.PublicationDate >= currentMonthStart);
+            if (topicName == null) continue;
 
-            var previousMonthCount = await _context.PaperTopics
-                .Include(pt => pt.Paper)
-                .CountAsync(pt => pt.TopicId == topicId && pt.Paper.PublicationDate >= previousMonthStart && pt.Paper.PublicationDate < currentMonthStart);
-
-            double growth = 0;
-            if (previousMonthCount > 0)
+            var yearlyCounts = new List<YearlyCountDto>();
+            foreach (var year in targetYears)
             {
-                growth = Math.Round((double)(currentMonthCount - previousMonthCount) / previousMonthCount * 100, 1);
+                var startInt = year - step + 1;
+                var count = paperTopicsQuery
+                    .Count(pt => pt.TopicId == topTopic.TopicId 
+                              && pt.PublicationYear >= startInt 
+                              && pt.PublicationYear <= year);
+
+                yearlyCounts.Add(new YearlyCountDto
+                {
+                    Year = year,
+                    Count = count
+                });
             }
-            else if (currentMonthCount > 0)
+
+            // Calculate Average Growth Percentage over all step intervals
+            double totalIntervalGrowth = 0;
+            int intervalCount = targetYears.Count - 1;
+
+            if (intervalCount > 0)
             {
-                growth = 100.0; // From 0 to something is 100% growth
+                for (int i = 0; i < intervalCount; i++)
+                {
+                    double startCount = yearlyCounts[i].Count;
+                    double endCount = yearlyCounts[i + 1].Count;
+
+                    double intervalGrowth = 0;
+                    if (startCount > 0)
+                    {
+                        intervalGrowth = (endCount - startCount) / startCount * 100;
+                    }
+                    else if (endCount > 0)
+                    {
+                        intervalGrowth = 100.0;
+                    }
+                    
+                    totalIntervalGrowth += intervalGrowth;
+                }
             }
 
-            hotTopics.Add(new HotTopicDto
+            double averageGrowthPercentage = intervalCount > 0
+                ? Math.Round(totalIntervalGrowth / intervalCount, 1)
+                : 0;
+
+            var currentYearCount = paperTopicsQuery
+                .Count(pt => pt.TopicId == topTopic.TopicId && pt.PublicationYear == end);
+
+            // Calculate TotalPercentage: topic's total publications in selected range / overall sum of top topics in range
+            double totalPercentage = overallTotalCount > 0
+                ? Math.Round((double)topTopic.TotalCount / overallTotalCount * 100, 1)
+                : 0;
+
+            trends.Add(new HotTopicDto
             {
-                TopicName = topic.TopicName,
-                PaperCount = currentMonthCount,
-                GrowthPercentage = growth
+                TopicName = topicName,
+                PaperCount = currentYearCount,
+                AverageGrowthPercentage = averageGrowthPercentage,
+                TotalPercentage = totalPercentage,
+                YearlyCounts = yearlyCounts
             });
         }
 
-        return hotTopics;
+        return trends;
     }
 }

@@ -42,9 +42,9 @@ public class DashboardController : ApiController
     }
 
     [HttpGet("hot-topics")]
-    public async Task<IActionResult> GetHotTopicsAsync()
+    public async Task<IActionResult> GetHotTopicsAsync([FromQuery] int? startYear, [FromQuery] int? endYear)
     {
-        var hotTopics = await _dashboardService.GetHotTopicsAsync(7);
+        var hotTopics = await _dashboardService.GetHotTopicsAsync(startYear, endYear);
         return Ok(ApiResult<IEnumerable<HotTopicDto>>.Success(hotTopics));
     }
 }

@@ -9,5 +9,5 @@ public interface IDashboardService
 {
     Task<DashboardSummaryDto> GetSummaryAsync(Guid userId);
     Task<IEnumerable<PublicationTrendDto>> GetPublicationTrendsAsync(int lastXMonths = 6);
-    Task<IEnumerable<HotTopicDto>> GetHotTopicsAsync(int topCount = 5);
+    Task<IEnumerable<HotTopicDto>> GetHotTopicsAsync(int? startYear, int? endYear);
 }

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using N_Tier.Application.Exceptions;
+using N_Tier.Application.Models;
 using N_Tier.Application.Models.User;
 using N_Tier.DataAccess.Repositories;
 using N_Tier.Shared.Helpers;
@@ -15,24 +16,47 @@ public class UserService : IUserService
     private readonly ICoreUserRepository _coreUserRepository;
     private readonly IUserBookmarkRepository _userBookmarkRepository;
     private readonly IUserFollowingTopicRepository _userFollowingTopicRepository;
+    private readonly IUserFollowingJournalRepository _userFollowingJournalRepository;
     private readonly IPaperRepository _paperRepository;
     private readonly IResearchTopicRepository _topicRepository;
+    private readonly IJournalRepository _journalRepository;
     private readonly IClaimService _claimService;
 
     public UserService(
         ICoreUserRepository coreUserRepository, 
         IUserBookmarkRepository userBookmarkRepository,
         IUserFollowingTopicRepository userFollowingTopicRepository,
+        IUserFollowingJournalRepository userFollowingJournalRepository,
         IPaperRepository paperRepository,
         IResearchTopicRepository topicRepository,
+        IJournalRepository journalRepository,
         IClaimService claimService)
     {
         _coreUserRepository = coreUserRepository;
         _userBookmarkRepository = userBookmarkRepository;
         _userFollowingTopicRepository = userFollowingTopicRepository;
+        _userFollowingJournalRepository = userFollowingJournalRepository;
         _paperRepository = paperRepository;
         _topicRepository = topicRepository;
+        _journalRepository = journalRepository;
         _claimService = claimService;
+    }
+
+    public async Task<PagedResponse<UserResponseModel>> GetPaginatedUsersAsync(PagedRequest request)
+    {
+        var (results, total) = await _coreUserRepository.GetPaginatedAsync(request.Page, request.Size);
+        var mappedResults = results.Select(u => new UserResponseModel
+        {
+            UserId      = u.UserId,
+            Username    = u.Username,
+            Email       = u.Email,
+            Phonenumber = u.Phonenumber,
+            RoleName    = u.Role?.RoleName,
+            IsActive    = u.IsActive,
+            CreatedAt   = u.CreatedAt
+        }).ToList();
+
+        return new PagedResponse<UserResponseModel>(mappedResults, total, request.Page, request.Size);
     }
 
     public async Task<List<UserResponseModel>> GetAllUsersAsync()
@@ -46,7 +70,8 @@ public class UserService : IUserService
             Email       = u.Email,
             Phonenumber = u.Phonenumber,
             RoleName    = u.Role?.RoleName,
-            IsActive    = u.IsActive
+            IsActive    = u.IsActive,
+            CreatedAt   = u.CreatedAt
         }).ToList();
     }
 
@@ -79,7 +104,8 @@ public class UserService : IUserService
             Email       = user.Email,
             Phonenumber = user.Phonenumber,
             RoleName    = user.Role?.RoleName,
-            IsActive    = user.IsActive
+            IsActive    = user.IsActive,
+            CreatedAt   = user.CreatedAt
         };
     }
 
@@ -104,7 +130,8 @@ public class UserService : IUserService
             Email       = user.Email,
             Phonenumber = user.Phonenumber,
             RoleName    = user.Role?.RoleName,
-            IsActive    = user.IsActive
+            IsActive    = user.IsActive,
+            CreatedAt   = user.CreatedAt
         };
     }
 
@@ -112,7 +139,7 @@ public class UserService : IUserService
     {
         var currentUserId = _claimService.GetUserId();
 
-        // Admin không được tự xóa chính mình
+        // Admin is not allowed to delete their own account
         if (currentUserId != null && Guid.Parse(currentUserId) == userId)
             throw new BadRequestException("You cannot delete your own account");
 
@@ -124,7 +151,7 @@ public class UserService : IUserService
         if (user.Role?.RoleName == "System Administrator")
             throw new BadRequestException("Cannot delete a System Administrator account");
 
-        // Soft delete: đánh dấu đã xóa, không xóa khỏi DB
+        // Soft delete: mark as deleted, do not remove from DB
         user.IsDeleted = true;
         user.DeletedAt = DateTimeOffset.UtcNow;
         user.IsActive = false;
@@ -149,7 +176,8 @@ public class UserService : IUserService
             Email = user.Email,
             Phonenumber = user.Phonenumber,
             RoleName = user.Role?.RoleName,
-            IsActive = user.IsActive
+            IsActive = user.IsActive,
+            CreatedAt = user.CreatedAt
         };
     }
 
@@ -205,7 +233,8 @@ public class UserService : IUserService
             Email = user.Email,
             Phonenumber = user.Phonenumber,
             RoleName = user.Role?.RoleName,
-            IsActive = user.IsActive
+            IsActive = user.IsActive,
+            CreatedAt = user.CreatedAt
         };
     }
 
@@ -345,5 +374,86 @@ public class UserService : IUserService
             throw new NotFoundException("Follow relationship not found");
 
         await _userFollowingTopicRepository.DeleteAsync(follow);
+    }
+
+    public async Task<List<UserFollowingJournalResponseModel>> GetFollowingJournalsAsync()
+    {
+        var currentUserIdStr = _claimService.GetUserId();
+        if (string.IsNullOrEmpty(currentUserIdStr) || !Guid.TryParse(currentUserIdStr, out var currentUserId))
+            throw new UnauthorizedException("User is not authenticated");
+
+        var followingJournals = await _userFollowingJournalRepository.GetFollowingJournalsByUserIdAsync(currentUserId);
+
+        return followingJournals.Select(f => new UserFollowingJournalResponseModel
+        {
+            FollowId = f.FollowId,
+            UserId = f.UserId,
+            JournalId = f.JournalId,
+            CreatedAt = f.CreatedAt,
+            JournalName = f.Journal?.JournalName,
+            NormalizedName = f.Journal?.NormalizedName
+        }).ToList();
+    }
+
+    public async Task<UserFollowingJournalResponseModel> FollowJournalAsync(Guid journalId)
+    {
+        var currentUserIdStr = _claimService.GetUserId();
+        if (string.IsNullOrEmpty(currentUserIdStr) || !Guid.TryParse(currentUserIdStr, out var currentUserId))
+            throw new UnauthorizedException("User is not authenticated");
+
+        // Validate journal
+        var journal = await _journalRepository.GetFirstAsync(j => j.JournalId == journalId);
+        if (journal == null)
+            throw new NotFoundException($"Journal with id {journalId} not found");
+
+        // Check if already following
+        var isFollowing = await _userFollowingJournalRepository.IsFollowingAsync(currentUserId, journalId);
+        if (isFollowing)
+            throw new BadRequestException("You are already following this journal");
+
+        var follow = new N_Tier.Core.Entities.UserFollowingJournal
+        {
+            UserId = currentUserId,
+            JournalId = journalId
+        };
+
+        var result = await _userFollowingJournalRepository.AddAsync(follow);
+
+        return new UserFollowingJournalResponseModel
+        {
+            FollowId = result.FollowId,
+            UserId = result.UserId,
+            JournalId = result.JournalId,
+            CreatedAt = result.CreatedAt,
+            JournalName = journal.JournalName,
+            NormalizedName = journal.NormalizedName
+        };
+    }
+
+    public async Task UnfollowJournalAsync(Guid journalId)
+    {
+        var currentUserIdStr = _claimService.GetUserId();
+        if (string.IsNullOrEmpty(currentUserIdStr) || !Guid.TryParse(currentUserIdStr, out var currentUserId))
+            throw new UnauthorizedException("User is not authenticated");
+
+        var follow = await _userFollowingJournalRepository.GetFollowAsync(currentUserId, journalId);
+        if (follow == null)
+            throw new NotFoundException("Follow relationship not found");
+
+        await _userFollowingJournalRepository.DeleteAsync(follow);
+    }
+
+    public async Task UpdateDeviceTokenAsync(UpdateDeviceTokenModel model)
+    {
+        var currentUserIdStr = _claimService.GetUserId();
+        if (string.IsNullOrEmpty(currentUserIdStr) || !Guid.TryParse(currentUserIdStr, out var currentUserId))
+            throw new UnauthorizedException("User is not authenticated");
+
+        var user = await _coreUserRepository.GetFirstAsync(u => u.UserId == currentUserId);
+        if (user == null)
+            throw new NotFoundException("User not found");
+
+        user.FcmToken = model.DeviceToken;
+        await _coreUserRepository.UpdateAsync(user);
     }
 }

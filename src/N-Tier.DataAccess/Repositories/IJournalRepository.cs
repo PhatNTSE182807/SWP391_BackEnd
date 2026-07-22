@@ -1,5 +1,13 @@
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 using N_Tier.Core.Entities;
 
 namespace N_Tier.DataAccess.Repositories;
 
-public interface IJournalRepository : IBaseRepository<Journal> { }
+public interface IJournalRepository : IBaseRepository<Journal>
+{
+    Task<IEnumerable<Journal>> GetAllWithInclusionsAsync();
+    Task<Journal> GetByIdAsync(Guid id);
+    Task<(IEnumerable<Journal> Results, int TotalCount)> GetPaginatedAsync(int page, int size);
+}

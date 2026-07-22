@@ -1,16 +1,16 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using N_Tier.Application.Models.Journal;
-using N_Tier.Application.Models.PaperAuthor;
-using N_Tier.Core.Entities;
+using N_Tier.Application.Models.UserBookmark;
 
 namespace N_Tier.Application.Models.Paper
 {
-    public class PaperResponseModel : BaseResponseModel
+    public class PaperResponseModel
     {
+        public Guid PaperId { get; set; }
+
         public string Doi { get; set; }
 
         public string Title { get; set; }
@@ -45,9 +45,43 @@ namespace N_Tier.Application.Models.Paper
 
         public DateTime? UpdatedAt { get; set; }
 
-        public virtual JournalResponseModel Journal { get; set; }
+        public virtual PaperJournalSummaryResponseModel Journal { get; set; }
 
-        public virtual ICollection<PaperAuthorResponseModel> PaperAuthorResponseModels { get; set; } = new List<PaperAuthorResponseModel>();
+        public virtual ICollection<PaperAuthorSummaryResponseModel> PaperAuthors { get; set; } = new List<PaperAuthorSummaryResponseModel>();
 
+        public virtual ICollection<PaperTopicSummaryResponseModel> PaperTopics { get; set; } = new List<PaperTopicSummaryResponseModel>();
+
+        public virtual ICollection<PaperKeywordSummaryResponseModel> PaperKeywords { get; set; } = new List<PaperKeywordSummaryResponseModel>();
+
+        public virtual ICollection<UserBookmarkResponseModel> UserBookmarks { get; set; } = new List<UserBookmarkResponseModel>();
+
+    }
+
+    public class PaperJournalSummaryResponseModel
+    {
+        public Guid JournalId { get; set; }
+
+        public string JournalName { get; set; }
+    }
+
+    public class PaperAuthorSummaryResponseModel
+    {
+        public Guid AuthorId { get; set; }
+
+        public string AuthorName { get; set; }
+    }
+
+    public class PaperTopicSummaryResponseModel
+    {
+        public Guid TopicId { get; set; }
+
+        public string TopicName { get; set; }
+    }
+
+    public class PaperKeywordSummaryResponseModel
+    {
+        public Guid KeywordId { get; set; }
+
+        public string KeywordName { get; set; }
     }
 }

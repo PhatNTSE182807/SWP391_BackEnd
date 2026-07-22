@@ -17,25 +17,31 @@ public partial class User
 
     public string Phonenumber { get; set; }
 
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow.AddHours(7);
+
     /// <summary>
-    /// Trạng thái tài khoản: true = active, false = deactivated
+    /// Account status: true = active, false = deactivated
     /// </summary>
     public bool IsActive { get; set; } = true;
 
     /// <summary>
-    /// Soft delete: true = đã bị xóa, false = bình thường
+    /// Soft delete flag: true = deleted, false = normal
     /// </summary>
     public bool IsDeleted { get; set; } = false;
 
     /// <summary>
-    /// Thời điểm tài khoản bị xóa (null nếu chưa xóa)
+    /// Timestamp when the account was deleted (null if not deleted)
     /// </summary>
     public DateTimeOffset? DeletedAt { get; set; }
 
     public virtual Role Role { get; set; }
 
+    public string FcmToken { get; set; }
+
     public virtual ICollection<UserBookmark> UserBookmarks { get; set; } = new List<UserBookmark>();
 
     public virtual ICollection<UserFollowingTopic> UserFollowingTopics { get; set; } = new List<UserFollowingTopic>();
+
+    public virtual ICollection<UserFollowingJournal> UserFollowingJournals { get; set; } = new List<UserFollowingJournal>();
 }
 

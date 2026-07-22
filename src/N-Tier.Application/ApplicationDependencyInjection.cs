@@ -15,16 +15,16 @@ namespace N_Tier.Application;
 
 public static class ApplicationDependencyInjection
 {
-    public static IServiceCollection AddApplication(this IServiceCollection services, IWebHostEnvironment env)
+    public static IServiceCollection AddApplication(this IServiceCollection services, IWebHostEnvironment env, IConfiguration configuration)
     {
-        services.AddServices(env);
+        services.AddServices(env, configuration);
 
         services.RegisterMapper();
 
         return services;
     }
 
-    private static void AddServices(this IServiceCollection services, IWebHostEnvironment env)
+    private static void AddServices(this IServiceCollection services, IWebHostEnvironment env, IConfiguration configuration)
     {
         services.AddScoped<IClaimService, ClaimService>();
         services.AddScoped<ITemplateService, TemplateService>();
@@ -32,15 +32,19 @@ public static class ApplicationDependencyInjection
         services.AddScoped<IJournalService, JournalService>();
         services.AddScoped<IPaperService, PaperService>();
         services.AddScoped<IAuthorService, AuthorService>();
+        services.AddScoped<IKeywordService, KeywordService>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<ISearchService, SearchService>();
         services.AddScoped<IHangfireJobService, HangfireJobService>();
         services.AddScoped<IAnalyticsService, AnalyticsService>();
         services.AddScoped<IDashboardService, DashboardService>();
+        services.AddScoped<IAdminDashboardService, AdminDashboardService>();
         services.AddScoped<ITopicService, TopicService>();
+        services.AddScoped<INotificationService, NotificationService>();
 
-        if (env.IsDevelopment())
+        var smtpSettings = configuration.GetSection("SmtpSettings").Get<SmtpSettings>();
+        if (env.IsDevelopment() && (smtpSettings == null || string.IsNullOrEmpty(smtpSettings.Password) || smtpSettings.Password.Contains("<account-password>")))
             services.AddScoped<IEmailService, DevEmailService>();
         else
             services.AddScoped<IEmailService, EmailService>();
@@ -49,6 +53,7 @@ public static class ApplicationDependencyInjection
     private static void RegisterMapper(this IServiceCollection services)
     {
         var config = TypeAdapterConfig.GlobalSettings;
+        config.Default.PreserveReference(true);
         config.Scan(typeof(IMappingProfilesMarker).Assembly);
 
         services.AddMapster();

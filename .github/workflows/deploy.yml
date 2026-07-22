@@ -17,6 +17,7 @@ jobs:
           password: ${{ secrets.VPS_PASSWORD }}
           port: ${{ secrets.VPS_PORT }}
           script: |
+            set -e
             cd ~/SWP391_BackEnd
             git pull origin production
             docker compose down

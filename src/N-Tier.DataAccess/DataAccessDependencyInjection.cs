@@ -31,6 +31,7 @@ public static class DataAccessDependencyInjection
         services.AddScoped<ICoreUserRepository, CoreUserRepository>();
         services.AddScoped<IUserBookmarkRepository, UserBookmarkRepository>();
         services.AddScoped<IUserFollowingTopicRepository, UserFollowingTopicRepository>();
+        services.AddScoped<IUserFollowingJournalRepository, UserFollowingJournalRepository>();
         services.AddScoped<IResearchTopicRepository, ResearchTopicRepository>();
     }
 
@@ -51,6 +52,7 @@ public static class DataAccessDependencyInjection
                     {
                         opt.MigrationsAssembly(typeof(DatabaseContext).Assembly.FullName);
                         opt.MigrationsHistoryTable("__EFMigrationsHistory", "core");
+                        opt.EnableRetryOnFailure();
                     }));
     }
 }
