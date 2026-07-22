@@ -68,13 +68,15 @@ public partial class DatabaseContext : DbContext
 
     public virtual DbSet<UserFollowingJournal> UserFollowingJournals { get; set; }
 
+    public virtual DbSet<Notification> Notifications { get; set; }
+
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
 #warning To protect potentially sensitive information in your connection string, you should move it out of source code. You can avoid scaffolding the connection string by using the Name= syntax to read it from configuration - see https://go.microsoft.com/fwlink/?linkid=2131148. For more guidance on storing connection strings, see https://go.microsoft.com/fwlink/?LinkId=723263.
         {
             if (!optionsBuilder.IsConfigured)
             {
                 optionsBuilder.UseSqlServer(
-                    "Server=13.213.7.89,1433;Database=scientific_journal_tracking_db;User ID=backend_user;Password=NguyeN2004@;TrustServerCertificate=True;",
+                    "Server=47.128.150.200,1433;Database=scientific_journal_tracking_db;User ID=sa;Password=NguyeN2004@;TrustServerCertificate=True;",
                     opt => 
                     {
                         opt.MigrationsHistoryTable("__EFMigrationsHistory", "core");
@@ -956,6 +958,53 @@ public partial class DatabaseContext : DbContext
                 .HasForeignKey(d => d.JournalId)
                 .OnDelete(DeleteBehavior.Cascade)
                 .HasConstraintName("FK_core_user_following_journals_journals");
+        });
+
+        modelBuilder.Entity<Notification>(entity =>
+        {
+            entity.HasKey(e => e.NotificationId).HasName("PK_core_notifications");
+
+            entity.ToTable("notifications", "core");
+
+            entity.Property(e => e.NotificationId)
+                .HasDefaultValueSql("(newid())")
+                .HasColumnName("notification_id");
+
+            entity.Property(e => e.UserId).HasColumnName("user_id");
+            entity.Property(e => e.PaperId).HasColumnName("paper_id");
+            entity.Property(e => e.TopicId).HasColumnName("topic_id");
+            entity.Property(e => e.JournalId).HasColumnName("journal_id");
+
+            entity.Property(e => e.Title)
+                .IsRequired()
+                .HasMaxLength(500)
+                .HasColumnName("title");
+
+            entity.Property(e => e.Body)
+                .HasMaxLength(2000)
+                .HasColumnName("body");
+
+            entity.Property(e => e.EventType)
+                .HasMaxLength(100)
+                .HasColumnName("event_type");
+
+            entity.Property(e => e.IsRead)
+                .HasDefaultValue(false)
+                .HasColumnName("is_read");
+
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(dateadd(hour,(7),sysutcdatetime()))")
+                .HasColumnName("created_at");
+
+            entity.HasOne(d => d.User).WithMany(p => p.Notifications)
+                .HasForeignKey(d => d.UserId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_core_notifications_users");
+
+            entity.HasOne(d => d.Paper).WithMany()
+                .HasForeignKey(d => d.PaperId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("FK_core_notifications_papers");
         });
 
         OnModelCreatingPartial(modelBuilder);

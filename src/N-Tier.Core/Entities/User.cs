@@ -43,5 +43,7 @@ public partial class User
     public virtual ICollection<UserFollowingTopic> UserFollowingTopics { get; set; } = new List<UserFollowingTopic>();
 
     public virtual ICollection<UserFollowingJournal> UserFollowingJournals { get; set; } = new List<UserFollowingJournal>();
+
+    public virtual ICollection<Notification> Notifications { get; set; } = new List<Notification>();
 }
 
