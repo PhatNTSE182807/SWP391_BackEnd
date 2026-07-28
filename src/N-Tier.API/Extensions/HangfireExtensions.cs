@@ -1,5 +1,8 @@
 using Hangfire;
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace N_Tier.API.Extensions;
 
@@ -15,16 +18,13 @@ public static class HangfireExtensions
             using var connection = new SqlConnection(connectionString);
             connection.Open();
             
-            // Hangfire will automatically create schema on first use
-            // Just verify connection works
             var logger = services.GetRequiredService<ILogger<Program>>();
             logger.LogInformation("Hangfire database connection verified");
         }
         catch (Exception ex)
         {
             var logger = services.GetRequiredService<ILogger<Program>>();
-            logger.LogError(ex, "Failed to verify Hangfire database connection");
-            throw;
+            logger.LogWarning("Failed to verify Hangfire database connection: {Message}. App will continue starting up.", ex.Message);
         }
     }
 }

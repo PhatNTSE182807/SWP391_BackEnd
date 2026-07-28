@@ -9,13 +9,17 @@ using Google.Apis.Auth.OAuth2;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using N_Tier.Application.Models.Notification;
+using N_Tier.Core.Entities;
 using N_Tier.DataAccess.Persistence;
+using N_Tier.Shared.Services;
 
 namespace N_Tier.Application.Services.Impl;
 
 public class NotificationService : INotificationService
 {
     private readonly DatabaseContext _context;
+    private readonly IClaimService _claimService;
     private readonly ILogger<NotificationService> _logger;
     private readonly bool _isMock;
     private static readonly object _lock = new();
@@ -23,10 +27,12 @@ public class NotificationService : INotificationService
 
     public NotificationService(
         DatabaseContext context,
+        IClaimService claimService,
         IConfiguration configuration,
         ILogger<NotificationService> logger)
     {
         _context = context;
+        _claimService = claimService;
         _logger = logger;
 
         var credentialPath = configuration["Firebase:CredentialFilePath"];
@@ -121,24 +127,48 @@ public class NotificationService : INotificationService
                 .Include(uft => uft.User)
                 .ToListAsync();
 
+            if (!followingUsers.Any()) continue;
+
+            var title = $"New Paper in Followed Topic: {topic.TopicName}";
+            var body = $"\"{paper.Title}\" has been published in {topic.TopicName}.";
+            var eventType = "NewPaperInFollowedTopic";
+
+            // Persist notifications in DB for all target users
+            var now = DateTime.UtcNow.AddHours(7);
+            var notificationEntities = followingUsers.Select(uft => new Core.Entities.Notification
+            {
+                NotificationId = Guid.NewGuid(),
+                UserId = uft.UserId,
+                Title = title,
+                Body = body,
+                EventType = eventType,
+                PaperId = paperId,
+                TopicId = topic.TopicId,
+                IsRead = false,
+                CreatedAt = now
+            }).ToList();
+
+            _context.Notifications.AddRange(notificationEntities);
+            await _context.SaveChangesAsync();
+
+            // Send FCM push notifications to devices with FCM Token
             var tokens = followingUsers
                 .Where(uft => uft.User != null && !string.IsNullOrWhiteSpace(uft.User.FcmToken))
                 .Select(uft => uft.User.FcmToken)
                 .Distinct()
                 .ToList();
 
-            if (!tokens.Any()) continue;
-
-            var title = $"New Paper in Followed Topic: {topic.TopicName}";
-            var body = $"\"{paper.Title}\" has been published in {topic.TopicName}.";
-            var data = new Dictionary<string, string>
+            if (tokens.Any())
             {
-                { "paperId", paperId.ToString() },
-                { "topicId", topic.TopicId.ToString() },
-                { "eventType", "NewPaperInFollowedTopic" }
-            };
+                var data = new Dictionary<string, string>
+                {
+                    { "paperId", paperId.ToString() },
+                    { "topicId", topic.TopicId.ToString() },
+                    { "eventType", eventType }
+                };
 
-            await SendMulticastNotificationAsync(tokens, title, body, data);
+                await SendMulticastNotificationAsync(tokens, title, body, data);
+            }
         }
     }
 
@@ -166,13 +196,7 @@ public class NotificationService : INotificationService
             .Include(ufj => ufj.User)
             .ToListAsync();
 
-        var tokens = followingUsers
-            .Where(ufj => ufj.User != null && !string.IsNullOrWhiteSpace(ufj.User.FcmToken))
-            .Select(ufj => ufj.User.FcmToken)
-            .Distinct()
-            .ToList();
-
-        if (!tokens.Any())
+        if (!followingUsers.Any())
         {
             _logger.LogInformation("No users follow journal {JournalId} for paper {PaperId}.", journal.JournalId, paperId);
             return;
@@ -180,14 +204,44 @@ public class NotificationService : INotificationService
 
         var title = $"New Paper in Followed Journal: {journal.JournalName}";
         var body = $"\"{paper.Title}\" has been published in {journal.JournalName}.";
-        var data = new Dictionary<string, string>
-        {
-            { "paperId", paperId.ToString() },
-            { "journalId", journal.JournalId.ToString() },
-            { "eventType", "NewPaperInFollowedJournal" }
-        };
+        var eventType = "NewPaperInFollowedJournal";
 
-        await SendMulticastNotificationAsync(tokens, title, body, data);
+        // Persist notifications in DB for target users
+        var now = DateTime.UtcNow.AddHours(7);
+        var notificationEntities = followingUsers.Select(ufj => new Core.Entities.Notification
+        {
+            NotificationId = Guid.NewGuid(),
+            UserId = ufj.UserId,
+            Title = title,
+            Body = body,
+            EventType = eventType,
+            PaperId = paperId,
+            JournalId = journal.JournalId,
+            IsRead = false,
+            CreatedAt = now
+        }).ToList();
+
+        _context.Notifications.AddRange(notificationEntities);
+        await _context.SaveChangesAsync();
+
+        // Send FCM push notifications
+        var tokens = followingUsers
+            .Where(ufj => ufj.User != null && !string.IsNullOrWhiteSpace(ufj.User.FcmToken))
+            .Select(ufj => ufj.User.FcmToken)
+            .Distinct()
+            .ToList();
+
+        if (tokens.Any())
+        {
+            var data = new Dictionary<string, string>
+            {
+                { "paperId", paperId.ToString() },
+                { "journalId", journal.JournalId.ToString() },
+                { "eventType", eventType }
+            };
+
+            await SendMulticastNotificationAsync(tokens, title, body, data);
+        }
     }
 
     public async Task SendBookmarkedPaperUpdatedNotificationAsync(Guid paperId)
@@ -206,13 +260,7 @@ public class NotificationService : INotificationService
             .Include(ub => ub.User)
             .ToListAsync();
 
-        var tokens = bookmarks
-            .Where(ub => ub.User != null && !string.IsNullOrWhiteSpace(ub.User.FcmToken))
-            .Select(ub => ub.User.FcmToken)
-            .Distinct()
-            .ToList();
-
-        if (!tokens.Any())
+        if (!bookmarks.Any())
         {
             _logger.LogInformation("No bookmarks found for paper {PaperId}.", paperId);
             return;
@@ -220,13 +268,122 @@ public class NotificationService : INotificationService
 
         var title = "Bookmarked Paper Updated";
         var body = $"\"{paper.Title}\" has been updated with new information.";
-        var data = new Dictionary<string, string>
-        {
-            { "paperId", paperId.ToString() },
-            { "eventType", "BookmarkedPaperUpdated" }
-        };
+        var eventType = "BookmarkedPaperUpdated";
 
-        await SendMulticastNotificationAsync(tokens, title, body, data);
+        // Persist notifications in DB for target users
+        var now = DateTime.UtcNow.AddHours(7);
+        var notificationEntities = bookmarks.Select(ub => new Core.Entities.Notification
+        {
+            NotificationId = Guid.NewGuid(),
+            UserId = ub.UserId,
+            Title = title,
+            Body = body,
+            EventType = eventType,
+            PaperId = paperId,
+            IsRead = false,
+            CreatedAt = now
+        }).ToList();
+
+        _context.Notifications.AddRange(notificationEntities);
+        await _context.SaveChangesAsync();
+
+        // Send FCM push notifications
+        var tokens = bookmarks
+            .Where(ub => ub.User != null && !string.IsNullOrWhiteSpace(ub.User.FcmToken))
+            .Select(ub => ub.User.FcmToken)
+            .Distinct()
+            .ToList();
+
+        if (tokens.Any())
+        {
+            var data = new Dictionary<string, string>
+            {
+                { "paperId", paperId.ToString() },
+                { "eventType", eventType }
+            };
+
+            await SendMulticastNotificationAsync(tokens, title, body, data);
+        }
+    }
+
+    public async Task<List<NotificationResponseModel>> GetUserNotificationsAsync()
+    {
+        var userIdStr = _claimService.GetUserId();
+        if (string.IsNullOrEmpty(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
+        {
+            throw new UnauthorizedAccessException("User is not authenticated");
+        }
+
+        var notifications = await _context.Notifications
+            .Where(n => n.UserId == userId)
+            .OrderByDescending(n => n.CreatedAt)
+            .ToListAsync();
+
+        return notifications.Select(n => new NotificationResponseModel
+        {
+            NotificationId = n.NotificationId,
+            UserId = n.UserId,
+            Title = n.Title,
+            Body = n.Body,
+            EventType = n.EventType,
+            PaperId = n.PaperId,
+            TopicId = n.TopicId,
+            JournalId = n.JournalId,
+            IsRead = n.IsRead,
+            CreatedAt = n.CreatedAt
+        }).ToList();
+    }
+
+    public async Task<int> GetUnreadCountAsync()
+    {
+        var userIdStr = _claimService.GetUserId();
+        if (string.IsNullOrEmpty(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
+        {
+            throw new UnauthorizedAccessException("User is not authenticated");
+        }
+
+        return await _context.Notifications
+            .CountAsync(n => n.UserId == userId && !n.IsRead);
+    }
+
+    public async Task MarkAsReadAsync(Guid notificationId)
+    {
+        var userIdStr = _claimService.GetUserId();
+        if (string.IsNullOrEmpty(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
+        {
+            throw new UnauthorizedAccessException("User is not authenticated");
+        }
+
+        var notification = await _context.Notifications
+            .FirstOrDefaultAsync(n => n.NotificationId == notificationId && n.UserId == userId);
+
+        if (notification != null && !notification.IsRead)
+        {
+            notification.IsRead = true;
+            await _context.SaveChangesAsync();
+        }
+    }
+
+    public async Task MarkAllAsReadAsync()
+    {
+        var userIdStr = _claimService.GetUserId();
+        if (string.IsNullOrEmpty(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
+        {
+            throw new UnauthorizedAccessException("User is not authenticated");
+        }
+
+        var unreadNotifications = await _context.Notifications
+            .Where(n => n.UserId == userId && !n.IsRead)
+            .ToListAsync();
+
+        if (unreadNotifications.Any())
+        {
+            foreach (var n in unreadNotifications)
+            {
+                n.IsRead = true;
+            }
+            await _context.SaveChangesAsync();
+        }
     }
 
     private async Task SendMulticastNotificationAsync(List<string> tokens, string title, string body, Dictionary<string, string> data)
@@ -253,7 +410,7 @@ public class NotificationService : INotificationService
             var message = new MulticastMessage()
             {
                 Tokens = uniqueTokens,
-                Notification = new Notification()
+                Notification = new FirebaseAdmin.Messaging.Notification()
                 {
                     Title = title,
                     Body = body

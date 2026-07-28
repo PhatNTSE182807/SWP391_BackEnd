@@ -133,7 +133,7 @@ public class AnalyticsService : IAnalyticsService
                         .Aggregations(sub => sub
                             .Add("top_topics", subAgg => subAgg
                                 .Terms(t => t
-                                    .Field("topics.topicName")
+                                    .Field("topics.topicName.keyword")
                                     .Size(size)
                                 )
                             )
@@ -182,7 +182,7 @@ public class AnalyticsService : IAnalyticsService
                         .Aggregations(sub => sub
                             .Add("top_domains", subAgg => subAgg
                                 .Terms(t => t
-                                    .Field("topics.domainName")
+                                    .Field("topics.domainName.keyword")
                                     .Size(size)
                                 )
                             )
