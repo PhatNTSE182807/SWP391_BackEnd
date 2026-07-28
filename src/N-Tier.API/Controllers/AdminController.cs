@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -22,7 +22,7 @@ public class AdminController(IUserService userService) : ApiController
         var users = await userService.GetPaginatedUsersAsync(request);
         return Ok(ApiResult<PagedResponse<UserResponseModel>>.Success(users));
     }
-
+   
     /// <summary>
     /// Toggles the active/deactivated status of a user.
     /// Admin cannot deactivate themselves.
